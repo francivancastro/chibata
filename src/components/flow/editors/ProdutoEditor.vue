@@ -1,6 +1,7 @@
 <script setup>
 import { ref, onMounted, computed } from "vue";
 import { useCrud } from "@/composables/useCrud";
+import EtapaCamposComuns from "./EtapaCamposComuns.vue";
 
 const props = defineProps({
   etapa: {
@@ -20,6 +21,7 @@ const emit = defineEmits(["update", "save"]);
 const produtos = ref([]);
 const produtoSelecionado = ref(null);
 const titulo = ref(props.etapa?.titulo || "");
+const descricao = ref(props.etapa?.descricao || "");
 const ordem = ref(props.etapa?.ordem || "");
 const origem = ref(props.etapa?.origem || "principal");
 const proxima = ref(props.etapa?.proxima_etapa_id ?? null);
@@ -62,8 +64,18 @@ function getPayload() {
   }
 }
 
+function normalizeProdutoId(value) {
+  if (value == null || value === "") return null;
+
+  const num = Number(value);
+  return Number.isNaN(num) ? value : num;
+}
+
 function save() {
+  const produtoId = normalizeProdutoId(produtoSelecionado.value);
+
   emit("update", {
+    descricao: descricao.value,
     titulo: titulo.value,
     ordem: ordem.value,
     produto_id: produtoSelecionado.value,
@@ -72,7 +84,7 @@ function save() {
     payload: JSON.stringify(
       {
         ...getPayload(),
-        produto_id: produtoSelecionado.value,
+        produto_id: produtoId,
         origem: origem.value,
       },
       null,
@@ -105,7 +117,10 @@ onMounted(load);
     clearable
   />
 
-  <v-text-field label="Título" v-model="titulo" />
+  <EtapaCamposComuns
+    v-model:titulo="titulo"
+    v-model:descricao="descricao"
+  />
 
   <v-text-field label="Ordem" v-model="ordem" type="number" />
 

@@ -22,6 +22,8 @@ import MensagemEditor from "@/components/flow/editors/MensagemEditor.vue";
 import ProdutoEditor from "@/components/flow/editors/ProdutoEditor.vue";
 import CondicaoEditor from "@/components/flow/editors/CondicaoEditor.vue";
 import AcaoEditor from "@/components/flow/editors/AcaoEditor.vue";
+import PagamentoEditor from "@/components/flow/editors/PagamentoEditor.vue";
+import FinalEditor from "@/components/flow/editors/FinalEditor.vue";
 
 const route = useRoute();
 const router = useRouter();
@@ -82,11 +84,30 @@ function closeEditor(event) {
 }
 
 function parsePayload(payload) {
+  if (!payload) return {};
+
+  if (typeof payload === "object") return payload;
+
   try {
-    return payload ? JSON.parse(payload) : {};
+    return JSON.parse(payload);
   } catch {
     return {};
   }
+}
+
+function normalizePayloadForSave(payload) {
+  if (payload == null) return null;
+
+  if (typeof payload === "string") {
+    try {
+      JSON.parse(payload);
+      return payload;
+    } catch {
+      return null;
+    }
+  }
+
+  return JSON.stringify(payload);
 }
 
 function buildNodes(etapas) {
@@ -116,11 +137,25 @@ function buildEdges(etapas) {
       });
     }
 
+    if (etapa.fallback_etapa_id) {
+      result.push({
+        id: `${etapa.id}-fallback-${etapa.fallback_etapa_id}`,
+        source: String(etapa.id),
+        target: String(etapa.fallback_etapa_id),
+        label: "FALLBACK",
+        animated: true,
+        style: { stroke: "#e53935", strokeDasharray: "6 4" },
+        labelStyle: { fill: "#e53935" },
+      });
+    }
+
     if (etapa.tipo === "condicao") {
       const payload = parsePayload(etapa.payload);
 
       if (payload.opcoes) {
         Object.entries(payload.opcoes).forEach(([label, target]) => {
+          if (target == null) return;
+
           result.push({
             id: `${etapa.id}-${label}-${target}`,
             source: String(etapa.id),
@@ -144,7 +179,10 @@ async function load() {
       funil_id: funilId,
     });
 
-    const etapas = response.data.data ?? response.data;
+    const body = response?.data;
+    const etapas = Array.isArray(body?.data)
+      ? body.data
+      : (body?.data?.list ?? body?.list ?? []);
 
     nodes.value = buildNodes(etapas);
     edges.value = buildEdges(etapas);
@@ -177,7 +215,9 @@ async function createNode() {
     }),
 
     pagamento: JSON.stringify({
-      action: "create_payment",
+      gateway_code: "pushinpay",
+      environment: "production",
+      payment_context: "main_order",
     }),
 
     final: JSON.stringify({
@@ -251,6 +291,8 @@ const editorComponent = computed(() => {
     produto: ProdutoEditor,
     condicao: CondicaoEditor,
     acao: AcaoEditor,
+    pagamento: PagamentoEditor,
+    final: FinalEditor,
   };
 
   return tipo ? (editors[tipo] ?? null) : null;
@@ -281,6 +323,7 @@ async function saveNode() {
 
   const payload = {
     ...selected.value,
+    payload: normalizePayloadForSave(selected.value.payload),
   };
 
   const isNew = !payload.id || String(payload.id).startsWith("temp-");
@@ -336,6 +379,44 @@ async function deleteNode() {
     selected.value = null;
   } catch (error) {
     console.error('Erro ao excluir etapa:', error);
+  }
+}
+
+async function onConnect(connection) {
+  const sourceId = String(connection?.source ?? "");
+  const targetId = String(connection?.target ?? "");
+
+  if (!sourceId || !targetId || sourceId === targetId) return;
+
+  const sourceNode = nodes.value.find((n) => String(n.id) === sourceId);
+  const etapa = sourceNode?.data?.etapa;
+
+  if (!etapa) return;
+
+  if (etapa.tipo === "condicao") {
+    console.warn(
+      "Etapa de condição: ajuste as opções SIM/NÃO pelo editor da etapa.",
+    );
+    return;
+  }
+
+  if (etapa.tipo === "final") return;
+
+  const updated = {
+    ...etapa,
+    proxima_etapa_id: targetId,
+    payload: normalizePayloadForSave(etapa.payload),
+  };
+
+  try {
+    await crud.update({
+      id: updated.id,
+      ...updated,
+    });
+
+    await load();
+  } catch (error) {
+    console.error("Erro ao conectar etapas:", error);
   }
 }
 
@@ -424,6 +505,7 @@ onMounted(load);
           :node-types="nodeTypes"
           @node-click="selectNode"
           @pane-click="closeEditor"
+          @connect="onConnect"
           fit-view-on-init
         >
           <Background />

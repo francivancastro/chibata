@@ -6,11 +6,23 @@ const props = defineProps({
   items: Array,
   loading: Boolean,
   statusMap: Array,
+  total: {
+    type: Number,
+    default: 0,
+  },
+  page: {
+    type: Number,
+    default: 1,
+  },
+  pageSize: {
+    type: Number,
+    default: 10,
+  },
 });
 
 const router = useRouter();
 
-const emit = defineEmits(["open"]);
+const emit = defineEmits(["open", "update:page", "update:pageSize"]);
 
 function goFlow(item) {
   router.push({
@@ -28,11 +40,16 @@ function getStatus(value) {
 
 <template>
   <v-card flat>
-    <v-data-table
+    <v-data-table-server
       :items="items"
       :loading="loading"
       :headers="config.headers"
+      :items-length="total"
+      :page="page"
+      :items-per-page="pageSize"
       disable-sort
+      @update:page="emit('update:page', $event)"
+      @update:items-per-page="emit('update:pageSize', $event)"
       @click:row="(_, row) => emit('open', row.item)"
     >
       <!-- HEADER -->
@@ -85,6 +102,6 @@ function getStatus(value) {
           {{ value }}
         </span>
       </template>
-    </v-data-table>
+    </v-data-table-server>
   </v-card>
 </template>

@@ -91,6 +91,19 @@ const routes = [
     meta: { requiresAuth: true },
     component: () => import("../views/logs/logs.vue"),
   },
+  {
+    path: "/channel",
+    name: "Canais",
+    meta: { requiresAuth: true },
+    component: () => import("../views/channel/channel.vue"),
+  },
+  {
+    path: "/channel-account",
+    alias: "/channel_account",
+    name: "Contas de Canais",
+    meta: { requiresAuth: true },
+    component: () => import("../views/channel_account/channel_account.vue"),
+  },
 ];
 
 const router = createRouter({

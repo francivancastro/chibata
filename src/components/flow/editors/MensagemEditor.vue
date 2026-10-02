@@ -1,5 +1,6 @@
 <script setup>
 import { ref, computed } from "vue";
+import EtapaCamposComuns from "./EtapaCamposComuns.vue";
 
 const props = defineProps({
   etapa: {
@@ -35,9 +36,10 @@ function save() {
 </script>
 
 <template>
-  <v-text-field label="Título" v-model="titulo" />
-
-  <v-textarea label="Mensagem" v-model="descricao" />
+  <EtapaCamposComuns
+    v-model:titulo="titulo"
+    v-model:descricao="descricao"
+  />
 
   <v-text-field label="Ordem" v-model="ordem" type="number" />
 

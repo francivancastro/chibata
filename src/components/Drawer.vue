@@ -97,6 +97,16 @@ const routes = [
     to: "inbox",
   },
   {
+    icon: "mdi-transit-connection-variant",
+    title: "Canais",
+    to: "channel",
+  },
+  {
+    icon: "mdi-account-network",
+    title: "Contas de Canais",
+    to: "channel-account",
+  },
+  {
     icon: "mdi-filter-settings",
     title: "Funil",
     to: "funil",

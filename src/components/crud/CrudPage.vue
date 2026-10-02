@@ -1,5 +1,5 @@
 <script setup>
-import { ref, onMounted } from "vue";
+import { ref, watch, onMounted } from "vue";
 import { useCrud } from "@/composables/useCrud";
 import { useCrudRelations } from "@/composables/useCrudRelations";
 
@@ -15,6 +15,9 @@ const { relations, statusMap, loadRelations } = useCrudRelations(props.config);
 
 const items = ref([]);
 const loading = ref(false);
+const total = ref(0);
+const page = ref(1);
+const pageSize = ref(10);
 
 const dialog = ref(false);
 const selected = ref(null);
@@ -55,13 +58,25 @@ async function load() {
   loading.value = true;
 
   const { data } = await list({
-    pageSize: 10,
-    currentPage: 1,
+    pageSize: pageSize.value,
+    currentPage: page.value,
   });
 
   items.value = normalizeList(data.data.list);
+  total.value = data.data.total ?? 0;
   loading.value = false;
 }
+
+function onUpdatePage(value) {
+  page.value = value;
+}
+
+function onUpdatePageSize(value) {
+  pageSize.value = value;
+  page.value = 1;
+}
+
+watch([page, pageSize], load);
 
 function open(item) {
   selected.value = item;
@@ -85,7 +100,12 @@ onMounted(async () => {
     :items="items"
     :loading="loading"
     :status-map="statusMap"
+    :total="total"
+    :page="page"
+    :page-size="pageSize"
     @open="open"
+    @update:page="onUpdatePage"
+    @update:page-size="onUpdatePageSize"
   />
 
   <CrudDialog

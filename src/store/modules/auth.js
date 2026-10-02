@@ -20,13 +20,13 @@ export default {
       state.refreshToken = payload.refreshToken || "";
 
       Cookies.set("token", payload.accessToken, {
-        path: "",
+        path: "/",
         expires: 1,
       });
 
       if (payload.refreshToken) {
         Cookies.set("refreshToken", payload.refreshToken, {
-          path: "",
+          path: "/",
           expires: 7,
         });
       }
@@ -37,7 +37,7 @@ export default {
       state.permissions = payload.permissionList || [];
 
       Cookies.set("user", JSON.stringify(payload), {
-        path: "",
+        path: "/",
         expires: 1,
       });
     },
@@ -48,10 +48,11 @@ export default {
       state.refreshToken = "";
       state.permissions = [];
 
-      Cookies.remove("user");
-      Cookies.remove("token");
-      Cookies.remove("refreshToken");
-      Cookies.remove("config");
+      // remove no path padrão e limpa cookies legados criados com path ""
+      for (const name of ["user", "token", "refreshToken", "config"]) {
+        Cookies.remove(name, { path: "/" });
+        Cookies.remove(name, { path: "" });
+      }
     },
   },
 
