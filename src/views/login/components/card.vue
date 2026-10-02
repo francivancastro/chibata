@@ -1,24 +1,22 @@
 <template>
-  <v-card class="pa-5 text-center" variant="outlined">
-    <h2 style="height: 55px">Acesso</h2>
+  <v-card class="auth-card" variant="flat">
+    <header class="auth-form-heading"><h2>Acesse seu workspace</h2><p>Entre com suas credenciais para continuar.</p></header>
 
     <v-form ref="loginForm" v-model="formValid" @submit.prevent="login">
       <v-text-field
         v-model="servidor.cpf"
-        label="Username"
-        prepend-inner-icon="mdi-account"
+        label="Usuário"
+        autocomplete="username"
         :rules="[requiredRule]"
-      />
+      ><template #prepend-inner><PhUser :size="18" weight="regular" aria-hidden="true" /></template></v-text-field>
 
       <v-text-field
         v-model="servidor.password"
         label="Senha"
-        prepend-inner-icon="mdi-lock"
+        autocomplete="current-password"
         :type="showPassword ? 'text' : 'password'"
-        :append-inner-icon="showPassword ? 'mdi-eye-off' : 'mdi-eye'"
-        @click:append-inner="showPassword = !showPassword"
         :rules="[requiredRule]"
-      />
+      ><template #prepend-inner><PhLock :size="18" weight="regular" aria-hidden="true" /></template><template #append-inner><button type="button" class="password-toggle" :aria-label="showPassword ? 'Ocultar senha' : 'Mostrar senha'" @click="showPassword = !showPassword"><component :is="showPassword ? PhEyeSlash : PhEye" :size="18" weight="regular" aria-hidden="true" /></button></template></v-text-field>
 
       <v-btn
         :loading="isLoading"
@@ -38,12 +36,10 @@
         class="mt-2"
         @click="goRegister"
       >
-        Registrar
+        Criar uma conta
       </v-btn>
 
-      <div v-if="isError" class="text-red mt-2">
-        Houve um erro, tente novamente
-      </div>
+      <v-alert v-if="isError" class="mt-4" type="error" variant="tonal" density="compact">Não foi possível entrar. Confira seus dados e tente novamente.</v-alert>
     </v-form>
   </v-card>
 </template>
@@ -53,6 +49,7 @@ import { ref } from "vue";
 import http from "@/plugins/axios";
 import { useStore } from "vuex";
 import { useRouter } from "vue-router";
+import { PhEye, PhEyeSlash, PhLock, PhUser } from "@phosphor-icons/vue";
 
 const store = useStore();
 const router = useRouter();

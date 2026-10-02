@@ -1,6 +1,7 @@
 import { createRouter, createWebHistory } from "vue-router";
 import store from "@/store";
 import Cookies from "js-cookie";
+import { isLocalPreviewEnabled } from "@/utils/local-preview";
 
 const routes = [
   {
@@ -99,7 +100,8 @@ const router = createRouter({
 });
 
 router.beforeEach(async (to, from, next) => {
-  const isLogged = Cookies.get("token") !== undefined;
+  const isPreview = isLocalPreviewEnabled();
+  const isLogged = isPreview || Cookies.get("token") !== undefined;
 
   const isPublic = to.meta.public === true;
   const requiresAuth = to.meta.requiresAuth === true;
@@ -117,7 +119,7 @@ router.beforeEach(async (to, from, next) => {
   }
 
   // 🔥 CONFIG BOOTSTRAP (NÃO roda na tela de config)
-  if (isLogged && !isPublic && !store.getters["config/isLoaded"]) {
+  if (isLogged && !isPreview && !isPublic && !store.getters["config/isLoaded"]) {
     const ok = await store.dispatch("config/load");
 
     console.log("[ROUTER] config load result:", ok);

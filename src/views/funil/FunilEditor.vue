@@ -10,6 +10,7 @@ import { Controls } from "@vue-flow/controls";
 import { MiniMap } from "@vue-flow/minimap";
 
 import { useCrud } from "@/composables/useCrud";
+import { PhArrowLeft, PhFloppyDisk, PhPlus, PhTreeStructure, PhX } from "@phosphor-icons/vue";
 
 import MensagemNode from "@/components/flow/nodes/MensagemNode.vue";
 import ProdutoNode from "@/components/flow/nodes/ProdutoNode.vue";
@@ -33,6 +34,7 @@ const nodes = ref([]);
 const edges = ref([]);
 const selected = ref(null);
 const loading = ref(false);
+const loadError = ref("");
 
 const { fitView } = useVueFlow();
 
@@ -138,6 +140,7 @@ function buildEdges(etapas) {
 
 async function load() {
   loading.value = true;
+  loadError.value = "";
 
   try {
     const response = await crud.list({
@@ -150,6 +153,10 @@ async function load() {
     edges.value = buildEdges(etapas);
 
     setTimeout(() => fitView(), 300);
+  } catch {
+    nodes.value = [];
+    edges.value = [];
+    loadError.value = "Não foi possível carregar as etapas deste funil. Verifique a conexão e tente novamente.";
   } finally {
     loading.value = false;
   }
@@ -366,28 +373,22 @@ onMounted(load);
 </script>
 
 <template>
-  <v-container fluid class="pa-0">
-    <v-toolbar density="compact">
-      <v-btn icon="mdi-arrow-left" @click="router.back()" />
+  <v-container fluid class="flow-workspace pa-0">
+    <v-toolbar class="flow-toolbar" density="compact">
+      <v-btn icon variant="text" aria-label="Voltar para o funil" @click="router.back()"><PhArrowLeft :size="20" weight="regular" aria-hidden="true" /></v-btn>
 
-      <v-toolbar-title> Editor do Funil {{ funilId }} </v-toolbar-title>
+      <v-toolbar-title><strong>Editor do funil {{ funilId }}</strong><span class="flow-toolbar-context">Automação</span></v-toolbar-title>
 
       <v-spacer />
       <v-btn
-        color="success"
-        prepend-icon="mdi-plus"
+        color="primary"
         @click="showAddDialog = true"
-      >
-        Novo
-      </v-btn>
+      ><PhPlus :size="18" weight="regular" aria-hidden="true" />Novo</v-btn>
 
       <v-btn
         color="primary"
-        prepend-icon="mdi-content-save"
         @click="savePositions"
-      >
-        Salvar
-      </v-btn>
+      ><PhFloppyDisk :size="18" weight="regular" aria-hidden="true" />Salvar</v-btn>
     </v-toolbar>
 
     <v-dialog v-model="showAddDialog" max-width="420">
@@ -417,7 +418,9 @@ onMounted(load);
     </v-dialog>
 
     <div class="editor">
-      <div class="canvas">
+      <div v-if="loading" class="editor-state"><v-progress-circular indeterminate color="primary" /><p>Carregando etapas...</p></div>
+      <div v-else-if="loadError" class="editor-state"><PhTreeStructure :size="34" weight="regular" aria-hidden="true" /><h2>Editor temporariamente indisponível</h2><p>{{ loadError }}</p><v-btn color="primary" @click="load">Tentar novamente</v-btn></div>
+      <div v-else class="canvas">
         <VueFlow
           v-model:nodes="nodes"
           v-model:edges="edges"
@@ -438,12 +441,7 @@ onMounted(load);
 
           <v-spacer />
 
-          <v-btn
-            icon="mdi-close"
-            size="small"
-            variant="text"
-            @click.stop.prevent="closeEditor"
-          />
+          <v-btn icon size="small" variant="text" aria-label="Fechar editor" @click.stop.prevent="closeEditor"><PhX :size="18" weight="regular" aria-hidden="true" /></v-btn>
         </v-card-title>
 
         <v-card-text>
@@ -477,24 +475,50 @@ onMounted(load);
 </template>
 
 <style scoped>
+.flow-workspace { background: var(--cc-canvas); }
+.flow-toolbar { min-height: 64px; padding: 0 14px; border-bottom: 1px solid var(--cc-border); background: var(--cc-surface) !important; color: var(--cc-text); }
+.flow-toolbar .v-toolbar-title { display: flex; align-items: center; gap: 10px; min-width: 0; margin-inline-start: 8px; }
+.flow-toolbar-context { padding: 4px 7px; border: 1px solid var(--cc-border); border-radius: 6px; color: var(--cc-accent); font-size: 10px; font-weight: 650; letter-spacing: .04em; line-height: 1; }
+.flow-toolbar strong { overflow: hidden; font-size: 14px; font-weight: 650; text-overflow: ellipsis; white-space: nowrap; }
+.flow-toolbar .v-btn { gap: 8px; }
 .editor {
-  height: calc(100vh - 64px);
+  height: calc(100dvh - 64px);
   display: flex;
 }
 
 .canvas {
   flex: 1;
-  background: #f5f5f5;
+  min-width: 0;
+  background: var(--cc-canvas);
+  background-image: radial-gradient(circle at 1px 1px, rgba(0, 208, 132, .12) 1px, transparent 0);
+  background-size: 24px 24px;
 }
+.editor-state { display: grid; place-content: center; justify-items: center; flex: 1; min-width: 0; gap: 10px; padding: 32px; color: var(--cc-accent); background: var(--cc-surface); text-align: center; }
+.editor-state h2 { margin: 4px 0 0; color: var(--cc-text); font-size: 18px; }
+.editor-state p { max-width: 400px; margin: 0; color: var(--cc-muted); font-size: 13px; line-height: 1.55; }
 
 .sidebar {
-  width: 380px;
+  width: min(380px, 40vw);
+  background: var(--cc-surface);
+  border-left: 1px solid var(--cc-border);
   border-radius: 0;
   overflow: auto;
 }
+.sidebar :deep(.v-card-title) { padding: 18px 20px 14px; border-bottom: 1px solid var(--cc-border); font-size: 16px; }
+.sidebar :deep(.v-card-text) { padding: 18px 20px; }
+.sidebar :deep(.v-card-actions) { padding: 12px 20px 18px; border-top: 1px solid var(--cc-border); }
 
 .vue-flow {
   width: 100%;
   height: 100%;
+}
+@media (max-width: 600px) {
+  .flow-toolbar { padding-inline: 8px; }
+  .flow-toolbar strong { max-width: 150px; }
+  .flow-toolbar-context { display: none; }
+  .editor { flex-direction: column; height: auto; min-height: calc(100dvh - 64px); }
+  .canvas { min-height: 55dvh; }
+  .vue-flow { min-height: 55dvh; }
+  .sidebar { width: 100%; max-height: 45dvh; border-left: 0; border-top: 1px solid var(--cc-border); }
 }
 </style>

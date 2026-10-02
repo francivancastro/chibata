@@ -1,40 +1,47 @@
 <template>
-  <v-app-bar color="primary" elevation="0">
-    <v-app-bar-nav-icon color="white" @click="toggleDrawer" />
+  <v-app-bar color="surface" elevation="0" height="64" class="shell-topbar">
+    <v-btn icon variant="text" color="primary" aria-label="Alternar menu de navegação" class="shell-nav-toggle" @click="toggleDrawer">
+      <PhList :size="21" weight="regular" aria-hidden="true" />
+    </v-btn>
 
     <v-toolbar-title class="d-flex align-center">
-      <span class="font-weight-bold" style="font-size: 25px; color: white">
-        {{ systemName }}
-      </span>
+      <span class="font-weight-medium">{{ routeTitle }}</span>
 
-      <span
-        v-if="!isMobile && systemDescription"
-        class="ml-1"
-        style="color: white"
-      >
-        - {{ systemDescription }}
-      </span>
     </v-toolbar-title>
 
     <v-spacer />
+    <span v-if="isLocalPreview" class="shell-preview-badge">PRÉVIA LOCAL</span>
+    <span class="shell-breadcrumb">{{ systemName || 'Chibata CRM' }} / Workspace</span>
   </v-app-bar>
 </template>
 
 <script setup>
 import { computed } from "vue";
-import { useDisplay } from "vuetify";
 import { useStore } from "vuex";
+import { useRoute } from "vue-router";
+import { isLocalPreviewEnabled } from "@/utils/local-preview";
+import { PhList } from "@phosphor-icons/vue";
 
 const store = useStore();
-const display = useDisplay();
-
-const isMobile = computed(() => ["xs", "sm"].includes(display.name.value));
+const route = useRoute();
 
 const systemName = computed(() => store.getters["config/getNome"]);
+const isLocalPreview = isLocalPreviewEnabled();
 
-const systemDescription = computed(() => store.getters["config/getDescricao"]);
+const routeTitle = computed(() => ({
+  Home: "Visão geral",
+  Bots: "Bots de atendimento",
+  Inbox: "Inbox",
+  Funis: "Funis e automações",
+  "funil-editor": "Editor de automação",
+  Produtos: "Produtos",
+  Grupos: "Grupos de acesso",
+  Usuários: "Usuários",
+  Enumeração: "Parâmetros",
+  Logs: "Logs do sistema",
+}[route.name] || "Workspace"));
 
 function toggleDrawer() {
-  store.commit("drawer/CHANGE_DRAWER");
+  store.commit("drawer/TOGGLE_DRAWER");
 }
 </script>

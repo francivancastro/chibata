@@ -10,7 +10,7 @@ defineProps({
   <div class="final">
     <Handle type="target" :position="Position.Top" />
 
-    <div>🏁 Final</div>
+    <div class="final-label">Final</div>
 
     <strong>
       {{ data.etapa.titulo }}
@@ -19,25 +19,12 @@ defineProps({
 </template>
 
 <style scoped>
-.final {
-  width: 220px;
+.final { width: 220px; padding: 20px; border: 1px solid var(--cc-border-strong); border-radius: 18px; color: var(--cc-text); text-align: center; background: var(--cc-raised); box-shadow: 0 12px 28px rgba(0,0,0,.18); }
 
-  padding: 20px;
-
-  text-align: center;
-
-  background: #607d8b;
-
-  color: white;
-
-  border-radius: 50px;
-
-  box-shadow: 0 3px 15px #0003;
-}
+.final-label { color: var(--cc-accent); font-size: 10px; font-weight: 750; letter-spacing: .12em; text-transform: uppercase; }
 
 strong {
   display: block;
-
   margin-top: 10px;
 }
 </style>

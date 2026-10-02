@@ -12,8 +12,8 @@ defineProps({
 
 <style scoped>
 :deep(.header) {
-  background: #9c27b0;
+  background: #a7b8dc;
 
-  color: white;
+  color: var(--cc-on-accent);
 }
 </style>

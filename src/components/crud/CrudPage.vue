@@ -15,6 +15,7 @@ const { relations, statusMap, loadRelations } = useCrudRelations(props.config);
 
 const items = ref([]);
 const loading = ref(false);
+const loadError = ref("");
 
 const dialog = ref(false);
 const selected = ref(null);
@@ -53,14 +54,16 @@ function normalizeList(list) {
 
 async function load() {
   loading.value = true;
-
-  const { data } = await list({
-    pageSize: 10,
-    currentPage: 1,
-  });
-
-  items.value = normalizeList(data.data.list);
-  loading.value = false;
+  loadError.value = "";
+  try {
+    const { data } = await list({ pageSize: 10, currentPage: 1 });
+    if (!Array.isArray(data?.data?.list)) throw new Error("Invalid response");
+    items.value = normalizeList(data.data.list);
+  } catch {
+    loadError.value = "Não foi possível carregar os registros. Verifique a conexão e tente novamente.";
+  } finally {
+    loading.value = false;
+  }
 }
 
 function open(item) {
@@ -74,7 +77,7 @@ function close() {
 }
 
 onMounted(async () => {
-  await loadRelations();
+  try { await loadRelations(); } catch { /* The list has its own retry state. */ }
   await load();
 });
 </script>
@@ -85,6 +88,8 @@ onMounted(async () => {
     :items="items"
     :loading="loading"
     :status-map="statusMap"
+    :error="loadError"
+    @retry="load"
     @open="open"
   />
 

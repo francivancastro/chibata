@@ -1,56 +1,42 @@
 <template>
-  <v-card class="pa-5 text-center" variant="outlined">
-    <h2 style="height: 55px">Cadastro</h2>
+  <v-card class="auth-card" variant="flat">
+    <header class="auth-form-heading"><h2>Crie sua conta</h2><p>Seu próximo atendimento começa com uma conexão.</p></header>
 
     <v-form ref="formRef" v-model="formValid" @submit.prevent="register">
       <v-text-field
         v-model="form.nome"
         label="Nome"
-        prepend-inner-icon="mdi-account"
         :rules="[requiredRule]"
-      />
-
-      <v-text-field
-        v-model="form.cpf"
-        label="CPF"
-        prepend-inner-icon="mdi-card-account-details"
-        :rules="[requiredRule]"
-      />
+      ><template #prepend-inner><PhUser :size="18" weight="regular" aria-hidden="true" /></template></v-text-field>
 
       <v-text-field
         v-model="form.email"
         label="E-mail"
-        prepend-inner-icon="mdi-email"
         :rules="[requiredRule, emailRule]"
-      />
+      ><template #prepend-inner><PhEnvelope :size="18" weight="regular" aria-hidden="true" /></template></v-text-field>
 
       <v-text-field
         v-model="form.username"
-        label="Username"
-        prepend-inner-icon="mdi-account-circle"
+        label="Usuário"
         :rules="[requiredRule]"
         :error-messages="usernameError"
         :loading="checkingUsername"
         @blur="checkUsername"
-      />
+      ><template #prepend-inner><PhAt :size="18" weight="regular" aria-hidden="true" /></template></v-text-field>
 
       <v-text-field
         v-model="form.password"
         label="Senha"
-        prepend-inner-icon="mdi-lock"
         :type="showPassword ? 'text' : 'password'"
-        :append-inner-icon="showPassword ? 'mdi-eye-off' : 'mdi-eye'"
-        @click:append-inner="showPassword = !showPassword"
         :rules="[requiredRule]"
-      />
+      ><template #prepend-inner><PhLock :size="18" weight="regular" aria-hidden="true" /></template><template #append-inner><button type="button" class="password-toggle" :aria-label="showPassword ? 'Ocultar senha' : 'Mostrar senha'" @click="showPassword = !showPassword"><component :is="showPassword ? PhEyeSlash : PhEye" :size="18" weight="regular" aria-hidden="true" /></button></template></v-text-field>
 
       <v-text-field
         v-model="form.confirmPassword"
         label="Repetir senha"
-        prepend-inner-icon="mdi-lock-check"
         :type="showPassword ? 'text' : 'password'"
         :rules="[requiredRule, passwordMatchRule]"
-      />
+      ><template #prepend-inner><PhLockKey :size="18" weight="regular" aria-hidden="true" /></template></v-text-field>
 
       <v-btn
         :loading="isLoading"
@@ -62,10 +48,9 @@
         Cadastrar
       </v-btn>
 
-      <div v-if="isError" class="text-red mt-2">
-        Erro ao cadastrar, tente novamente
-      </div>
+      <v-alert v-if="isError" class="mt-4" type="error" variant="tonal" density="compact">Não foi possível concluir o cadastro. Confira os campos e tente novamente.</v-alert>
     </v-form>
+    <RouterLink class="auth-back" to="/login">Já tem uma conta? Entrar</RouterLink>
   </v-card>
 </template>
 
@@ -73,6 +58,7 @@
 import { ref } from "vue";
 import { useRouter } from "vue-router";
 import http from "@/plugins/axios";
+import { PhAt, PhEnvelope, PhEye, PhEyeSlash, PhLock, PhLockKey, PhUser } from "@phosphor-icons/vue";
 
 const router = useRouter();
 
@@ -88,7 +74,6 @@ const usernameError = ref("");
 
 const form = ref({
   nome: "",
-  cpf: "",
   email: "",
   username: "",
   password: "",
@@ -151,7 +136,6 @@ async function register() {
   try {
     const { data } = await http.post("/usuario/register", {
       nome: form.value.nome,
-      cpf: form.value.cpf,
       email: form.value.email,
       username: form.value.username,
       password: form.value.password,

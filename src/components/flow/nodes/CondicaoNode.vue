@@ -18,7 +18,7 @@ function options() {
   <div class="condition">
     <Handle type="target" :position="Position.Top" />
 
-    <div class="header">❓ Condição</div>
+    <div class="header">Condição</div>
 
     <div class="title">
       {{ data.etapa.titulo }}
@@ -35,57 +35,19 @@ function options() {
 </template>
 
 <style scoped>
-.condition {
-  width: 220px;
+.condition { width: 220px; overflow: hidden; border: 1px solid var(--cc-border); border-radius: 14px; background: var(--cc-surface); box-shadow: 0 12px 28px rgba(0,0,0,.18); }
 
-  background: white;
+.header { padding: 9px 12px; color: var(--cc-on-accent); background: var(--cc-accent); font-size: 10px; font-weight: 750; letter-spacing: .12em; text-transform: uppercase; }
 
-  border-radius: 12px;
-
-  box-shadow: 0 3px 15px #0002;
-
-  overflow: hidden;
-}
-
-.header {
-  background: #e91e63;
-
-  color: white;
-
-  padding: 8px;
-
-  font-weight: bold;
-}
-
-.title {
-  padding: 15px;
-
-  font-weight: bold;
-}
+.title { padding: 15px 12px; color: var(--cc-text); font-weight: 700; }
 
 .buttons {
   display: flex;
 }
 
-.option {
-  flex: 1;
+.option { flex: 1; padding: 9px; color: var(--cc-on-accent); text-align: center; font-size: 10px; font-weight: 750; letter-spacing: .08em; }
 
-  padding: 8px;
+.sim { background: var(--cc-success); }
 
-  text-align: center;
-
-  font-size: 12px;
-}
-
-.sim {
-  background: #4caf50;
-
-  color: white;
-}
-
-.nao {
-  background: #f44336;
-
-  color: white;
-}
+.nao { background: var(--cc-danger); }
 </style>

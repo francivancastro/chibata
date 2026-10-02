@@ -6,6 +6,7 @@ import {
   listMessages,
   sendMessage,
 } from "@/services/messaging";
+import { isLocalPreviewEnabled } from "@/utils/local-preview";
 
 function responseData(response) {
   return response?.data?.data ?? {};
@@ -17,6 +18,7 @@ function responseList(response) {
 }
 
 export function useInbox() {
+  const isLocalPreview = isLocalPreviewEnabled();
   const channels = ref([]);
   const conversations = ref([]);
   const selectedConversation = ref(null);
@@ -42,6 +44,12 @@ export function useInbox() {
   }
 
   async function loadChannels() {
+    if (isLocalPreview) {
+      channels.value = [];
+      errorChannels.value = "";
+      return;
+    }
+
     loadingChannels.value = true;
     errorChannels.value = "";
 
@@ -55,6 +63,13 @@ export function useInbox() {
   }
 
   async function loadConversations(filters = {}, page = 1) {
+    if (isLocalPreview) {
+      conversations.value = [];
+      errorConversations.value = "";
+      pagination.value = { ...pagination.value, page, total: 0 };
+      return;
+    }
+
     loadingConversations.value = true;
     errorConversations.value = "";
 
@@ -139,6 +154,7 @@ export function useInbox() {
   }
 
   return {
+    isLocalPreview,
     channels,
     channelFilters,
     conversations,

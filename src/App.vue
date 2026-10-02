@@ -1,9 +1,10 @@
 <template>
-  <v-app style="background-color: #e6f4ff">
+  <v-app class="command-app">
+    <a class="skip-link" href="#main-content">Ir para o conteúdo</a>
     <AppBar v-if="showNavigation" />
     <Drawer v-if="showNavigation" />
 
-    <v-main>
+    <v-main id="main-content">
       <router-view />
     </v-main>
 
@@ -38,17 +39,17 @@ const showNavigation = computed(() => {
 }
 
 ::-webkit-scrollbar-track {
-  background-color: white;
+  background-color: var(--cc-canvas);
 }
 
 ::-webkit-scrollbar-thumb {
-  background-color: #d6dee1;
+  background-color: var(--cc-border);
   border-radius: 20px;
   border: 3px solid transparent;
   background-clip: content-box;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background-color: #a8bbbf;
+  background-color: var(--cc-muted);
 }
 </style>

@@ -121,7 +121,7 @@ export default {
   justify-content: space-between;
   height: 29.6cm;
   width: 21cm;
-  font-family: "Roboto";
+  font-family: "Nimbus Sans", "Segoe UI", sans-serif;
 }
 #background {
   text-align: center;

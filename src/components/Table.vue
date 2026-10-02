@@ -16,7 +16,7 @@
       disable-sort
     >
       <template #top>
-        <v-toolbar flat color="#D3D3D3" density="compact">
+        <v-toolbar flat color="surface" density="compact">
           <v-toolbar-title>{{ routeName }}</v-toolbar-title>
 
           <v-spacer />
@@ -24,16 +24,15 @@
           <v-text-field
             v-model="busca"
             placeholder="Busca"
-            prepend-inner-icon="mdi-magnify"
             clearable
             density="compact"
             hide-details
-          />
+          ><template #prepend-inner><PhMagnifyingGlass :size="17" weight="regular" aria-hidden="true" /></template></v-text-field>
 
           <slot name="toolbar" />
 
           <v-btn v-permission="'add'" color="primary" @click="showDialog()">
-            <v-icon start>mdi-plus</v-icon>
+            <PhPlus :size="17" weight="regular" aria-hidden="true" />
             Novo
           </v-btn>
         </v-toolbar>
@@ -75,6 +74,7 @@ import { ref, computed, watch, onMounted } from "vue";
 import { useStore } from "vuex";
 import { useRoute } from "vue-router";
 import http from "@/plugins/axios";
+import { PhMagnifyingGlass, PhPlus } from "@phosphor-icons/vue";
 
 const props = defineProps({
   type: String,

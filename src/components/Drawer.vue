@@ -1,17 +1,9 @@
 <template>
-  <v-navigation-drawer v-model="drawer" :width="isMobile ? 300 : 180" app>
+  <v-navigation-drawer v-model="drawer" :width="isMobile ? 280 : 256" class="shell-sidebar" app>
     <template #prepend>
-      <div class="pa-3 text-center">
-        <v-img contain height="60" src="@/assets/prefs.png" />
-
-        <div class="font-weight-bold mt-2">
-          {{ systemName }}
-        </div>
-
-        <div v-if="systemDescription" class="text-caption text-grey">
-          {{ systemDescription }}
-        </div>
-      </div>
+      <div class="shell-brand brand-wordmark"><span class="brand-symbol"><PhChatCenteredText :size="22" weight="regular" /></span>chibata</div>
+      <div class="shell-workspace"><strong>{{ systemName || 'Meu workspace' }}</strong>{{ systemDescription || 'Central de relacionamento' }}</div>
+      <p class="shell-nav-label">Workspace</p>
     </template>
 
     <v-list class="pt-0">
@@ -21,7 +13,7 @@
           :to="item.to ? '/' + item.to : '/'"
         >
           <template #prepend>
-            <v-icon>{{ item.icon }}</v-icon>
+            <component :is="item.icon" class="shell-icon" :size="19" :weight="routeIsActive(item.to) ? 'duotone' : 'regular'" aria-hidden="true" />
           </template>
 
           <v-list-item-title>
@@ -32,15 +24,15 @@
     </v-list>
 
     <template #append>
-      <v-footer class="pa-2 d-flex align-center">
-        <v-avatar size="40" color="secondary">
-          <v-icon color="white"> mdi-account-circle </v-icon>
+      <v-footer class="shell-account d-flex align-center">
+        <v-avatar size="36" color="primary" variant="tonal">
+          <PhUserCircle :size="20" weight="regular" />
         </v-avatar>
 
         <div class="ml-2">
-          <div>{{ user?.usuario?.nome }}</div>
+          <div class="shell-account-name">{{ user?.usuario?.nome || 'Minha conta' }}</div>
 
-          <v-btn size="x-small" variant="text" @click="logout"> SAIR </v-btn>
+          <v-btn size="x-small" variant="text" @click="logout"><PhSignOut :size="15" weight="regular" aria-hidden="true" />Sair</v-btn>
         </div>
       </v-footer>
     </template>
@@ -52,10 +44,28 @@ import { computed } from "vue";
 import { useStore } from "vuex";
 import { useDisplay } from "vuetify";
 import { useRouter } from "vue-router";
+import { clearLocalPreview } from "@/utils/local-preview";
+import { useRoute } from "vue-router";
+import {
+  PhBracketsCurly,
+  PhChatCenteredText,
+  PhFunnel,
+  PhHouseLine,
+  PhKey,
+  PhRobot,
+  PhShoppingBag,
+  PhSignOut,
+  PhTrayArrowDown,
+  PhTruck,
+  PhUserCircle,
+  PhUserList,
+  PhUsersThree,
+} from "@phosphor-icons/vue";
 
 const store = useStore();
 const display = useDisplay();
 const router = useRouter();
+const route = useRoute();
 
 const services = computed(() => store.getters["auth/getServices"]);
 
@@ -67,67 +77,72 @@ const systemDescription = computed(() => store.getters["config/getDescricao"]);
 
 const drawer = computed({
   get: () => store.state.drawer.showDrawer,
-  set: () => store.commit("drawer/CHANGE_DRAWER"),
+  set: (value) => store.commit("drawer/SET_DRAWER", value),
 });
 
 const isMobile = computed(() => ["xs", "sm"].includes(display.name.value));
 
 function logout() {
+  clearLocalPreview();
   store.commit("auth/LOGOUT");
   store.commit("config/CLEAR_CONFIG");
-  store.commit("drawer/CHANGE_DRAWER", false);
+  store.commit("drawer/SET_DRAWER", false);
 
   router.push("/login");
 }
 
+function routeIsActive(path) {
+  return path ? route.path.startsWith(`/${path}`) : route.path === "/";
+}
+
 const routes = [
   {
-    icon: "mdi-home",
+    icon: PhHouseLine,
     title: "Início",
     to: "",
   },
   {
-    icon: "mdi-robot",
+    icon: PhRobot,
     title: "Bot",
     to: "bot",
   },
   {
-    icon: "mdi-inbox-arrow-down",
+    icon: PhTrayArrowDown,
     title: "Inbox",
     to: "inbox",
   },
   {
-    icon: "mdi-filter-settings",
+    icon: PhFunnel,
     title: "Funil",
     to: "funil",
   },
   {
-    icon: "mdi-shopping",
+    icon: PhShoppingBag,
     title: "Produtos",
     to: "produto",
   },
   {
-    icon: "mdi-account-box-multiple",
+    icon: PhUsersThree,
     title: "Grupos",
     to: "grupo",
   },
   {
-    icon: "mdi-card-account-details",
+    icon: PhUserList,
     title: "Usuários",
     to: "usuario",
   },
   {
-    icon: "mdi-dump-truck",
+    icon: PhTruck,
     title: "Obras",
     to: "projeto",
   },
   {
-    icon: "mdi-code-json",
+    icon: PhBracketsCurly,
     title: "Parametro",
     to: "parametro",
   },
   {
-    icon: "mdi-key-link",
+    icon: PhKey,
     title: "Logs",
     to: "log",
   },

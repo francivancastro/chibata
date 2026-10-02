@@ -10,66 +10,22 @@ defineProps({
   <div class="node">
     <Handle type="target" :position="Position.Top" />
 
-    <div class="header">
-      
-      {{ data.etapa.tipo }}
-      
-    </div>
+    <div class="header">{{ data.etapa.tipo }}</div>
 
-    <div class="title">
-      
-      {{ data.etapa.titulo }}
-      
-    </div>
+    <div class="title">{{ data.etapa.titulo }}</div>
 
-    <div class="description">
-      
-      {{ data.etapa.descricao }}
-      
-    </div>
+    <div class="description">{{ data.etapa.descricao || "Sem descrição" }}</div>
 
     <Handle type="source" :position="Position.Bottom" />
   </div>
 </template>
 
 <style scoped>
-.node {
-  width: 220px;
+.node { width: 220px; overflow: hidden; border: 1px solid var(--cc-border); border-radius: 14px; background: var(--cc-surface); box-shadow: 0 12px 28px rgba(0,0,0,.18); }
 
-  background: white;
+.header { padding: 9px 12px; color: var(--cc-accent-strong); background: var(--cc-raised); font-size: 10px; font-weight: 750; letter-spacing: .12em; text-transform: uppercase; }
 
-  border-radius: 12px;
+.title { padding: 14px 12px 5px; color: var(--cc-text); font-weight: 700; }
 
-  box-shadow: 0 3px 15px #0002;
-
-  overflow: hidden;
-
-  border: 2px solid #ddd;
-}
-
-.header {
-  padding: 8px;
-
-  font-size: 12px;
-
-  font-weight: bold;
-
-  text-transform: uppercase;
-
-  background: #eee;
-}
-
-.title {
-  padding: 12px 10px 5px;
-
-  font-weight: bold;
-}
-
-.description {
-  padding: 0 10px 15px;
-
-  font-size: 13px;
-
-  color: #666;
-}
+.description { padding: 0 12px 16px; color: var(--cc-muted); font-size: 12px; line-height: 1.45; }
 </style>
