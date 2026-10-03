@@ -32,6 +32,8 @@
 - Viewport pass: desktop `1440x900` reports `scrollWidth=1440`, `scrollHeight=900`, map `904x469`, inspector `264px` and chat composer fully inside its `224px` panel. Mobile `390x844` reports `scrollWidth=390`, `scrollHeight=844`; the internal modes `Mapa`, `Sala` and `Chat` keep the document fixed while panels own their content.
 - Avatar pass: Phaser agents now have a grounded shadow, role accent/accessory, offline desaturation and a short working-only tool motion; inspector avatars share the same floor-shadow language.
 - Chat pass: the thread header exposes `Codex ↔ selected agent`, bridge confirmation and message timestamps/status context; mobile chat keeps its composer available inside the viewport.
+- Motion pass: animation policy follows the CEO review — Phaser handles grounded avatar state transitions and Vue/CSS handles message/feed/panel feedback. Working loops require a real `working` signal; completed/blocked feedback is one-shot; unknown/waiting/offline never imply activity; DOM buttons mirror canvas agents for keyboard and screen readers.
+- Agent review: Sage recommended the hybrid CSS + Phaser approach; Atlas prioritized operational value over ornamental motion; Lumen defined the 2.5D sprite layering and timing rules; Forge identified stable identity, tween cleanup, resize and stale-snapshot risks; Cipher found no critical blocker and approved proceeding under the no-fake-activity checklist.
 - Chat composer accepted a controlled message; the actual bridge limitation appeared in the chat as an explicit error.
 
 ## Known limitation

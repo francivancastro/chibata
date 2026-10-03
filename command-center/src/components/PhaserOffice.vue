@@ -7,6 +7,8 @@ const emit = defineEmits(['select'])
 const gameHost = ref(null)
 let game
 let scene
+let resizeObserver
+let resizeHandler
 
 const rooms = [
   { id: 'codex', x: 13, y: 3, w: 15, h: 8, label: 'NÚCLEO DO CODEX', tone: 0xfe6e00, prop: 'terminal' },
@@ -21,6 +23,8 @@ function statusColor(agent) {
 }
 
 function accentColor(index) { return [0xfe6e00, 0x3080ff, 0x9b72c6, 0x5c6d73, 0x3d8a68, 0x8f5d4b][index % 6] }
+function stableKey(agent) { return `${agent?.name || 'unknown'}::${agent?.workspace || agent?.workspace_name || 'local'}` }
+function agentLabel(agent) { return `${agent?.name || 'Agente'}, ${agent?.role || 'papel não observado'}, estado ${agent?.operational_state || 'desconhecido'}` }
 
 function drawFurniture(sceneRef, room) {
   const g = sceneRef.add.graphics()
@@ -40,16 +44,17 @@ function drawFurniture(sceneRef, room) {
 }
 
 class OfficeScene extends Phaser.Scene {
-  constructor() { super({ key: 'OfficeScene' }); this.agentLayer = null; this.agentObjects = new Map() }
+  constructor() { super({ key: 'OfficeScene' }); this.agentLayer = null; this.agentObjects = new Map(); this.reducedMotion = false; this.initialCameraFit = false }
 
   create() {
     this.cameras.main.setBackgroundColor('#9fbf8b')
+    this.reducedMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches || false
     this.drawWorld()
     this.agentLayer = this.add.layer()
-    this.renderAgents(props.agents)
-    this.scale.on('resize', () => this.fitCamera())
+    this.updateAgents(props.agents)
+    this.scale.on('resize', this.handleResize, this)
     this.input.on('wheel', (_pointer, _gameObjects, _dx, dy) => { this.cameras.main.zoom = Phaser.Math.Clamp(this.cameras.main.zoom - dy * 0.0006, 0.55, 1.25) })
-    this.fitCamera()
+    this.fitCamera(true)
   }
 
   drawWorld() {
@@ -70,46 +75,103 @@ class OfficeScene extends Phaser.Scene {
     this.cameras.main.setBounds(0, 0, worldW, worldH)
   }
 
-  fitCamera() {
+  handleResize() { this.fitCamera(false) }
+
+  fitCamera(initial = false) {
     const width = this.scale.width || 900
     const height = this.scale.height || 560
     this.cameras.main.centerOn((43 * 32) / 2, (23 * 32) / 2)
-    this.cameras.main.setZoom(Math.min(width / (43 * 32), height / (23 * 32)) * .98)
+    if (initial || !this.initialCameraFit) this.cameras.main.setZoom(Math.min(width / (43 * 32), height / (23 * 32)) * .98)
+    this.initialCameraFit = true
   }
 
-  renderAgents(agents) {
-    if (!this.agentLayer) return
-    this.agentLayer.removeAll(true)
-    const positions = [{ x: 21, y: 8 }, { x: 34, y: 8 }, { x: 7, y: 18 }, { x: 22, y: 18 }, { x: 35, y: 18 }, { x: 18, y: 10 }, { x: 28, y: 18 }, { x: 12, y: 6 }]
-    agents.forEach((agent, index) => {
-      const point = positions[index % positions.length]
-      const x = point.x * 32; const y = point.y * 32
-      const color = statusColor(agent)
-      const avatar = this.add.container(x, y)
-      const shadow = this.add.graphics().fillStyle(0x423d38, .24).fillEllipse(0, 26, 34, 9)
-      const body = this.add.graphics().fillStyle(0x423d38).fillRect(-12, 2, 24, 26).fillStyle(accentColor(index)).fillRect(-8, 5, 16, 20).fillStyle(0xffc9a5).fillRect(-7, -13, 14, 14).fillStyle(0x423d38).fillRect(-10, -14, 20, 5).fillStyle(0xffd579).fillRect(13, 8, 7, 7)
-      const accessory = this.add.graphics().fillStyle(color).fillRect(-18, 10, 5, 12).fillStyle(0xffffff, .45).fillRect(-18, 10, 2, 12)
-      const badge = this.add.graphics().fillStyle(0x1d2224, .95).fillRoundedRect(-58, -48, 116, 27, 4).lineStyle(2, color).strokeRoundedRect(-58, -48, 116, 27, 4)
-      const label = this.add.text(-50, -43, agent.name, { color: '#ffffff', fontFamily: 'monospace', fontSize: '11px', fontStyle: 'bold' })
-      const status = this.add.text(-50, -28, agent.operational_state || 'unknown', { color: '#e9e3da', fontFamily: 'monospace', fontSize: '8px' })
-      avatar.add([shadow, body, accessory, badge, label, status]).setSize(116, 78).setInteractive({ useHandCursor: true })
-      if (agent.operational_state === 'working') this.tweens.add({ targets: [body, accessory], y: -2, duration: 180, yoyo: true, repeat: -1, ease: 'Steps' })
-      if (agent.operational_state === 'offline') avatar.setAlpha(.48)
-      avatar.on('pointerdown', () => emit('select', agent))
-      this.agentLayer.add(avatar)
-      this.agentObjects.set(agent.name, avatar)
+  createAgentObject(agent, index) {
+    const point = [{ x: 21, y: 8 }, { x: 34, y: 8 }, { x: 7, y: 18 }, { x: 22, y: 18 }, { x: 35, y: 18 }, { x: 18, y: 10 }, { x: 28, y: 18 }, { x: 12, y: 6 }][index % 8]
+    const avatar = this.add.container(point.x * 32, point.y * 32)
+    const color = statusColor(agent)
+    const shadow = this.add.graphics().fillStyle(0x423d38, .24).fillEllipse(0, 26, 34, 9)
+    const body = this.add.graphics().fillStyle(0x423d38).fillRect(-12, 2, 24, 26).fillStyle(accentColor(index)).fillRect(-8, 5, 16, 20).fillStyle(0xffc9a5).fillRect(-7, -13, 14, 14).fillStyle(0x423d38).fillRect(-10, -14, 20, 5).fillStyle(0xffd579).fillRect(13, 8, 7, 7)
+    const accessory = this.add.graphics().fillStyle(color).fillRect(-18, 10, 5, 12).fillStyle(0xffffff, .45).fillRect(-18, 10, 2, 12)
+    const badge = this.add.graphics().fillStyle(0x1d2224, .95).fillRoundedRect(-58, -48, 116, 27, 4).lineStyle(2, color).strokeRoundedRect(-58, -48, 116, 27, 4)
+    const label = this.add.text(-50, -43, agent.name, { color: '#ffffff', fontFamily: 'monospace', fontSize: '11px', fontStyle: 'bold' })
+    const status = this.add.text(-50, -28, agent.operational_state || 'unknown', { color: '#e9e3da', fontFamily: 'monospace', fontSize: '8px' })
+    avatar.add([shadow, body, accessory, badge, label, status]).setSize(116, 78).setInteractive({ useHandCursor: true })
+    avatar.on('pointerdown', () => emit('select', agent))
+    avatar.setData('agent', agent)
+    avatar.setData('stableKey', stableKey(agent))
+    avatar.setData('body', body)
+    avatar.setData('accessory', accessory)
+    avatar.setData('status', agent.operational_state)
+    this.agentLayer.add(avatar)
+    return avatar
+  }
+
+  syncAgentMotion(avatar, agent) {
+    const previous = avatar.getData('status')
+    const state = agent.operational_state || 'unknown'
+    const body = avatar.getData('body')
+    const accessory = avatar.getData('accessory')
+    ;[avatar, body, accessory].forEach(target => this.tweens.killTweensOf(target))
+    avatar.setAlpha(state === 'offline' ? .48 : 1)
+    avatar.setData('status', state)
+    if (this.reducedMotion) return
+    if (state === 'working') this.tweens.add({ targets: [body, accessory], y: -2, duration: 180, yoyo: true, repeat: -1, ease: 'Stepped' })
+    if (previous && previous !== state && state === 'completed') this.tweens.add({ targets: avatar, y: '-=2', duration: 130, yoyo: true, ease: 'Cubic.Out' })
+    if (previous && previous !== state && state === 'blocked') this.tweens.add({ targets: avatar, x: '+=2', duration: 90, yoyo: true, repeat: 1, ease: 'Stepped' })
+  }
+
+  updateSelection(selected) {
+    const selectedKey = stableKey(selected)
+    this.agentObjects.forEach((avatar, key) => {
+      const active = key === selectedKey
+      avatar.setScale(active ? 1.04 : 1)
+      avatar.setData('selected', active)
     })
+  }
+
+  updateAgents(agents) {
+    if (!this.agentLayer) return
+    const next = new Map()
+    agents.forEach((agent, index) => {
+      const key = stableKey(agent)
+      const avatar = this.agentObjects.get(key) || this.createAgentObject(agent, index)
+      avatar.setData('agent', agent)
+      this.syncAgentMotion(avatar, agent)
+      next.set(key, avatar)
+    })
+    this.agentObjects.forEach((avatar, key) => { if (!next.has(key)) { this.tweens.killTweensOf(avatar); avatar.destroy(true) } })
+    this.agentObjects = next
   }
 }
 
 onMounted(() => {
   game = new Phaser.Game({ type: Phaser.AUTO, parent: gameHost.value, width: 1280, height: 680, pixelArt: true, antialias: false, backgroundColor: '#9fbf8d', scene: OfficeScene, scale: { mode: Phaser.Scale.RESIZE, autoCenter: Phaser.Scale.CENTER_BOTH } })
   scene = game.scene.getScene('OfficeScene')
+  resizeObserver = new ResizeObserver(entries => {
+    const entry = entries[0]
+    if (!entry || !game) return
+    const width = Math.max(1, Math.floor(entry.contentRect.width))
+    const height = Math.max(1, Math.floor(entry.contentRect.height))
+    if (game.scale.width !== width || game.scale.height !== height) game.scale.resize(width, height)
+  })
+  resizeObserver.observe(gameHost.value)
+  resizeHandler = () => {
+    const rect = gameHost.value?.getBoundingClientRect()
+    if (rect && game) game.scale.resize(Math.max(1, Math.floor(rect.width)), Math.max(1, Math.floor(rect.height)))
+  }
+  window.addEventListener('resize', resizeHandler, { passive: true })
+  resizeHandler()
 })
-watch(() => props.agents, agents => scene?.renderAgents(agents), { deep: true })
-onBeforeUnmount(() => { game?.destroy(true); game = null; scene = null })
+watch(() => props.agents, agents => scene?.updateAgents(agents), { deep: true, flush: 'post' })
+watch(() => props.selected, selected => scene?.updateSelection(selected), { deep: true })
+onBeforeUnmount(() => { resizeObserver?.disconnect(); if (resizeHandler) window.removeEventListener('resize', resizeHandler); scene?.scale?.off('resize', scene.handleResize, scene); scene?.agentObjects?.forEach(avatar => scene.tweens.killTweensOf(avatar)); game?.destroy(true); game = null; scene = null })
 </script>
 
 <template>
-  <div ref="gameHost" class="phaser-office" aria-label="Mapa interativo do escritório virtual"></div>
+  <div class="phaser-office-wrap">
+    <div ref="gameHost" class="phaser-office" aria-label="Mapa interativo do escritório virtual"></div>
+    <div class="phaser-accessibility-layer" aria-label="Agentes observados">
+      <button v-for="agent in agents" :key="stableKey(agent)" type="button" class="phaser-agent-button" :aria-label="agentLabel(agent)" :aria-pressed="stableKey(selected) === stableKey(agent)" @click="emit('select', agent)">{{ agent.name }} · {{ agent.operational_state || 'desconhecido' }}</button>
+    </div>
+  </div>
 </template>
