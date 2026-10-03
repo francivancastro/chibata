@@ -20,6 +20,8 @@ function statusColor(agent) {
   return { working: 0xfe6e00, waiting: 0xb4aaa0, completed: 0x00c758, blocked: 0xfb2c36, offline: 0xfb2c36, unknown: 0xb4aaa0 }[agent?.operational_state] || 0xb4aaa0
 }
 
+function accentColor(index) { return [0xfe6e00, 0x3080ff, 0x9b72c6, 0x5c6d73, 0x3d8a68, 0x8f5d4b][index % 6] }
+
 function drawFurniture(sceneRef, room) {
   const g = sceneRef.add.graphics()
   const x = room.x * 32
@@ -84,11 +86,15 @@ class OfficeScene extends Phaser.Scene {
       const x = point.x * 32; const y = point.y * 32
       const color = statusColor(agent)
       const avatar = this.add.container(x, y)
-      const body = this.add.graphics().fillStyle(0x423d38).fillRect(-12, 2, 24, 26).fillStyle(index % 2 ? 0x3080ff : 0xfe6e00).fillRect(-8, 5, 16, 20).fillStyle(0xffc9a5).fillRect(-7, -13, 14, 14).fillStyle(0x423d38).fillRect(-10, -14, 20, 5).fillStyle(0xffd579).fillRect(13, 8, 7, 7)
+      const shadow = this.add.graphics().fillStyle(0x423d38, .24).fillEllipse(0, 26, 34, 9)
+      const body = this.add.graphics().fillStyle(0x423d38).fillRect(-12, 2, 24, 26).fillStyle(accentColor(index)).fillRect(-8, 5, 16, 20).fillStyle(0xffc9a5).fillRect(-7, -13, 14, 14).fillStyle(0x423d38).fillRect(-10, -14, 20, 5).fillStyle(0xffd579).fillRect(13, 8, 7, 7)
+      const accessory = this.add.graphics().fillStyle(color).fillRect(-18, 10, 5, 12).fillStyle(0xffffff, .45).fillRect(-18, 10, 2, 12)
       const badge = this.add.graphics().fillStyle(0x1d2224, .95).fillRoundedRect(-58, -48, 116, 27, 4).lineStyle(2, color).strokeRoundedRect(-58, -48, 116, 27, 4)
       const label = this.add.text(-50, -43, agent.name, { color: '#ffffff', fontFamily: 'monospace', fontSize: '11px', fontStyle: 'bold' })
       const status = this.add.text(-50, -28, agent.operational_state || 'unknown', { color: '#e9e3da', fontFamily: 'monospace', fontSize: '8px' })
-      avatar.add([body, badge, label, status]).setSize(116, 78).setInteractive({ useHandCursor: true })
+      avatar.add([shadow, body, accessory, badge, label, status]).setSize(116, 78).setInteractive({ useHandCursor: true })
+      if (agent.operational_state === 'working') this.tweens.add({ targets: [body, accessory], y: -2, duration: 180, yoyo: true, repeat: -1, ease: 'Steps' })
+      if (agent.operational_state === 'offline') avatar.setAlpha(.48)
       avatar.on('pointerdown', () => emit('select', agent))
       this.agentLayer.add(avatar)
       this.agentObjects.set(agent.name, avatar)

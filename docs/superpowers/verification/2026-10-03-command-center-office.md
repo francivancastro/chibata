@@ -29,6 +29,9 @@
 - Visual refinement: desktop map now uses an original top-down Phaser composition with connected paths, room zones, terrain decoration, props and pixel-style avatars; mobile keeps the same spatial scene in a bounded canvas without horizontal overflow.
 - Gather-inspired refinement: `public/assets/command-center-village.png` is an original raster terrain asset; agent names, states and actions remain HTML/accessibility content above the map.
 - Phaser interaction: room/agent selection is emitted back to Vue for the inspector; wheel zoom is bounded and reduced-motion remains respected by the surrounding UI.
+- Viewport pass: desktop `1440x900` reports `scrollWidth=1440`, `scrollHeight=900`, map `904x469`, inspector `264px` and chat composer fully inside its `224px` panel. Mobile `390x844` reports `scrollWidth=390`, `scrollHeight=844`; the internal modes `Mapa`, `Sala` and `Chat` keep the document fixed while panels own their content.
+- Avatar pass: Phaser agents now have a grounded shadow, role accent/accessory, offline desaturation and a short working-only tool motion; inspector avatars share the same floor-shadow language.
+- Chat pass: the thread header exposes `Codex ↔ selected agent`, bridge confirmation and message timestamps/status context; mobile chat keeps its composer available inside the viewport.
 - Chat composer accepted a controlled message; the actual bridge limitation appeared in the chat as an explicit error.
 
 ## Known limitation

@@ -67,3 +67,79 @@ button:focus-visible, textarea:focus-visible { outline: 3px solid var(--orange-d
 @media (max-width: 620px) { .office-map { height: auto; aspect-ratio: auto; min-height: 0; padding: 14px; border-width: 5px; background: #e8e4df; }.office-map .map-grid-lines, .office-map .map-terrain { display: none; }.office-map .room-grid { height: auto; display: grid; gap: 12px; }.office-map .agent-room, .office-map .agent-room:nth-child(n) { position: relative; inset: auto; display: flex; width: 100%; height: 142px; min-height: 142px; padding: 16px; border: 3px solid #5a534c; border-radius: 7px; background: #f8f7f5; box-shadow: 4px 5px 0 rgba(75,68,61,.16); }.office-map .agent-room-copy { position: relative; top: auto; left: auto; min-width: 0; max-width: none; padding: 0; border: 0; color: var(--ink); background: transparent; box-shadow: none; }.office-map .agent-room-copy::after { display: none; }.office-map .agent-role { color: var(--muted); }.office-map .status-line { color: var(--ink); }.office-map .pixel-avatar { position: relative; bottom: auto; left: auto; width: 58px; height: 76px; transform: none; }.office-map .agent-task { display: block; max-width: 200px; margin-top: 8px; } }
 .phaser-office { width: 100%; height: 100%; overflow: hidden; }.phaser-office canvas { display: block; width: 100% !important; height: 100% !important; image-rendering: pixelated; }.map-loading { display: grid; place-items: center; height: 100%; min-height: 420px; color: #797067; font-family: monospace; font-size: 12px; background: #e8e4df; }
 @media (max-width: 620px) { .office-map { height: 420px; min-height: 420px; padding: 0; }.phaser-office { min-height: 410px; } }
+
+/* Viewport-first command center: the document stays fixed, panels own their scroll. */
+html, body, #app { width: 100%; height: 100%; overflow: hidden; }
+.office-app { width: 100%; height: 100dvh; min-height: 0; overflow: hidden; }
+.office-workspace { height: 100dvh; min-width: 0; overflow: hidden; }
+.office-topbar { height: 64px; min-height: 64px; }
+.office-main { display: flex; flex-direction: column; gap: 12px; height: calc(100dvh - 64px); min-height: 0; padding: 18px 18px 16px; overflow: hidden; }
+.map-header { min-height: 70px; margin: 0; align-items: center; }
+.map-header h1 { font-size: clamp(28px, 3vw, 46px); }
+.map-subtitle { margin-top: 8px; font-size: 12px; }
+.map-stats { min-width: 174px; }
+.bridge-alert { margin: 0; padding: 9px 12px; }
+.office-map-area { display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0; gap: 10px; }
+.office-map { width: 100%; height: 100%; min-height: 0; aspect-ratio: auto; border-radius: 14px; }
+.phaser-office { min-height: 0; }
+.office-lower-grid { flex: 0 0 224px; grid-template-columns: minmax(0, 1.4fr) minmax(220px, .8fr); gap: 12px; min-height: 0; margin: 0; }
+.chat-panel, .feed-panel { min-height: 0; padding: 14px; overflow: hidden; }
+.chat-panel { display: flex; flex-direction: column; }
+.chat-log { flex: 1 1 auto; min-height: 0; height: auto; max-height: none; margin: 10px 0; overflow-y: auto; }
+.chat-empty { min-height: 90px; }
+.feed-panel .activity-list { margin-top: 10px; max-height: 160px; overflow-y: auto; }
+.inspector-panel { height: 100dvh; min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
+.mobile-tabs { display: none; }
+.inspector-chat-button { width: 100%; min-height: 44px; margin-top: 18px; border: 0; border-radius: 9px; color: #fff; background: var(--orange-deep); font-weight: 800; }
+.chat-context { display: block; margin-top: 4px; color: var(--muted); font-size: 10px; }
+.message-role { display: flex; justify-content: space-between; gap: 10px; }
+.message-role time { color: inherit; opacity: .65; font-weight: 500; letter-spacing: 0; }
+.message-status { display: block; margin-top: 5px; color: var(--muted); font-size: 10px; }
+.avatar-shadow { position: absolute; right: 2px; bottom: 0; left: 2px; height: 8px; border-radius: 50%; background: rgba(66,61,56,.22); }
+.avatar-inspector { filter: drop-shadow(0 6px 0 rgba(66,61,56,.1)); }
+.office-map .phaser-office canvas { image-rendering: pixelated; }
+
+@media (max-width: 1100px) and (min-width: 901px) {
+  .office-main { grid-template-rows: auto auto minmax(0, 1fr) 210px; padding-inline: 14px; }
+  .office-lower-grid { grid-template-columns: 1fr 1fr; }
+}
+
+@media (max-width: 900px) {
+  .office-app { position: relative; }
+  .office-workspace { width: 100%; }
+  .office-main { gap: 10px; height: calc(100dvh - 64px); padding: 12px; }
+  .office-map-area { gap: 8px; }
+  .office-map { height: 100%; aspect-ratio: auto; }
+  .office-lower-grid { position: absolute; z-index: 8; inset: 64px 0 0; display: none; grid-template-columns: 1fr; height: calc(100dvh - 64px); padding: 12px; background: var(--canvas); }
+  .office-lower-grid.mobile-chat-visible { display: grid; grid-template-rows: minmax(0, 1fr); }
+  .office-lower-grid .feed-panel { display: none; }
+  .office-lower-grid .chat-panel { height: 100%; }
+  .chat-log { height: auto; flex: 1; min-height: 0; }
+  .chat-panel { display: flex; flex-direction: column; }
+  .chat-composer { margin-top: auto; }
+  .inspector-panel { position: absolute; z-index: 9; inset: 64px 0 0 auto; display: none; width: min(100%, 360px); height: calc(100dvh - 64px); box-shadow: -16px 0 40px rgba(0,0,0,.16); }
+  .inspector-panel.mobile-inspector-visible { display: block; }
+  .mobile-tabs { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+  .mobile-tabs button { min-height: 42px; border: 1px solid var(--line); border-radius: 9px; color: var(--muted); background: #fff; font-size: 12px; font-weight: 800; }
+  .mobile-tabs button.active { border-color: var(--orange-deep); color: var(--orange-deep); background: #fff3ea; }
+  .mobile-panel-hidden { visibility: hidden; pointer-events: none; }
+  .map-header h1 { font-size: 28px; }
+  .map-subtitle { display: none; }
+  .map-stats { display: flex; gap: 12px; min-width: 0; margin-top: 8px; }
+  .map-stats small { margin: 0; }
+}
+
+@media (max-width: 620px) {
+  .office-topbar { height: 56px; min-height: 56px; }
+  .office-workspace, .office-app { height: 100dvh; }
+  .office-main { height: calc(100dvh - 56px); padding: 10px; }
+  .office-main .bridge-alert { font-size: 11px; }
+  .office-main .bridge-alert p { display: none; }
+  .office-map { height: 100%; min-height: 0; border-width: 4px; }
+  .phaser-office { height: 100%; min-height: 0; }
+  .office-lower-grid { inset: 56px 0 0; height: calc(100dvh - 56px); padding: 10px; }
+  .inspector-panel { inset: 56px 0 0 auto; height: calc(100dvh - 56px); }
+  .map-header { min-height: 0; }
+  .map-header h1 { font-size: 25px; }
+  .map-stats { font-size: 10px; }
+}
