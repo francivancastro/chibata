@@ -83,7 +83,10 @@ const server = http.createServer(async (req, res) => {
       const validation = validateChatPayload(await readJson(req))
       if (!validation.ok) return json(res, 400, errorBody('INVALID_MESSAGE', validation.message))
       const result = await runMaestri(buildAllowedArgs('ask', 'Codex', validation.message))
-      if (result.code !== 0) return json(res, 503, errorBody('CLI_ERROR', 'O Codex não respondeu pela CLI Maestri.', true))
+      if (result.code !== 0) {
+        const selfTarget = result.stderr.includes('No connection to') && result.stderr.includes('Codex')
+        return json(res, 503, errorBody(selfTarget ? 'SELF_TARGET_UNAVAILABLE' : 'CLI_ERROR', selfTarget ? 'A CLI Maestri não permite enviar ask para o próprio terminal Codex. O inventário e o mapa continuam disponíveis; conecte um alvo de orquestração externo para habilitar respostas.' : 'O Codex não respondeu pela CLI Maestri.', true))
+      }
       return json(res, 200, { ok: true, ...createMeta('maestri-cli'), message: { message_id: randomUUID(), role: 'assistant', content: result.stdout.trim(), observed_at: new Date().toISOString() } })
     }
 
