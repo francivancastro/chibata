@@ -3,7 +3,9 @@ import store from "@/store";
 import router from "@/router";
 
 const http = axios.create({
-  baseURL: "http://localhost/php-seed",
+  // Preserve the existing local backend while allowing each environment to
+  // provide its own endpoint without changing source code.
+  baseURL: import.meta.env.VITE_API_BASE_URL || "http://localhost/php-seed",
 });
 
 let isRefreshing = false;

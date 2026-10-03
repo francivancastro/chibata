@@ -122,8 +122,6 @@ router.beforeEach(async (to, from, next) => {
   if (isLogged && !isPreview && !isPublic && !store.getters["config/isLoaded"]) {
     const ok = await store.dispatch("config/load");
 
-    console.log("[ROUTER] config load result:", ok);
-
     // 🔥 SE NÃO TEM CONFIG → VAI PARA FORM REAL
     if (!ok) {
       return next("/configuracao");

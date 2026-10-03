@@ -167,20 +167,20 @@ onMounted(async () => {
         <div v-if="isLocalPreview" class="preview-note" role="status">
           Prévia visual sem conexão com a API. Os canais aparecerão aqui quando o ambiente estiver conectado.
         </div>
-        <v-alert v-else-if="errorChannels" class="inline-error" type="error" variant="tonal" density="compact">{{ errorChannels }}</v-alert>
+        <v-alert v-else-if="errorChannels" class="inline-error" type="error" variant="tonal" density="compact" role="alert">{{ errorChannels }}</v-alert>
       </aside>
 
       <section class="conversation-list" :class="{ 'mobile-hidden': isMobile && mobilePanel !== 'list' }">
         <div class="panel-heading d-flex align-center">
           <span>Conversas</span><v-spacer /><span class="conversation-count">{{ pagination.total }}</span>
         </div>
-        <v-progress-linear v-if="loadingConversations" indeterminate color="primary" />
-        <div v-else-if="isLocalPreview" class="preview-state">
+        <v-progress-linear v-if="loadingConversations" indeterminate color="primary" role="progressbar" aria-label="Carregando conversas" />
+        <div v-else-if="isLocalPreview" class="preview-state" role="status" aria-live="polite">
           <PhChatCenteredText :size="30" weight="regular" aria-hidden="true" />
           <strong>Prévia do Inbox pronta</strong>
           <span>Conecte a API para carregar conversas e mensagens reais.</span>
         </div>
-        <div v-else-if="errorConversations" class="list-error-state">
+        <div v-else-if="errorConversations" class="list-error-state" role="alert">
           <PhChatCenteredText :size="30" weight="regular" aria-hidden="true" />
           <strong>Não foi possível abrir a fila</strong>
           <span>{{ errorConversations }}</span>
@@ -207,7 +207,7 @@ onMounted(async () => {
           </header>
 
           <v-alert v-if="errorMessages" type="error" variant="tonal" density="compact" class="ma-3">{{ errorMessages }}</v-alert>
-          <div class="messages-area">
+          <div class="messages-area" aria-live="polite" aria-label="Mensagens da conversa">
             <v-progress-circular v-if="loadingMessages" indeterminate color="primary" />
             <div v-else-if="!messages.length" class="empty-state">Nenhuma mensagem nesta conversa.</div>
             <div v-else class="message-stack">
