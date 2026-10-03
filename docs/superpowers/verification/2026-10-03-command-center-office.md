@@ -25,6 +25,7 @@
 
 - Desktop portal at `1440x892`: map, seven observed rooms, inspector, status legend and top-level controls rendered.
 - Narrow portal at `390x844`: `document.documentElement.clientWidth=375`, `scrollWidth=375`, composer present, seven rooms rendered without horizontal overflow.
+- Visual refinement: desktop map now uses an original top-down office-village composition with connected paths, room zones, terrain decoration and CSS pixel avatars; mobile switches to a readable stacked room layout.
 - Chat composer accepted a controlled message; the actual bridge limitation appeared in the chat as an explicit error.
 
 ## Known limitation
