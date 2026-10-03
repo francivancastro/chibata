@@ -35,7 +35,8 @@ import MensagemEditor from "@/components/flow/editors/MensagemEditor.vue";
 import ProdutoEditor from "@/components/flow/editors/ProdutoEditor.vue";
 import CondicaoEditor from "@/components/flow/editors/CondicaoEditor.vue";
 import AcaoEditor from "@/components/flow/editors/AcaoEditor.vue";
-import BasicEditor from "@/components/flow/editors/BasicEditor.vue";
+import PagamentoEditor from "@/components/flow/editors/PagamentoEditor.vue";
+import FinalEditor from "@/components/flow/editors/FinalEditor.vue";
 
 const route = useRoute();
 const router = useRouter();
@@ -80,8 +81,8 @@ const editors = {
   produto: ProdutoEditor,
   condicao: CondicaoEditor,
   acao: AcaoEditor,
-  pagamento: BasicEditor,
-  final: BasicEditor,
+  pagamento: PagamentoEditor,
+  final: FinalEditor,
 };
 
 const defaultPayloads = {
@@ -89,7 +90,7 @@ const defaultPayloads = {
   produto: JSON.stringify({ produto_id: null, origem: "principal" }),
   condicao: JSON.stringify({ pergunta: "", opcoes: { sim: null, nao: null } }),
   acao: JSON.stringify({ action: "create_order" }),
-  pagamento: JSON.stringify({ action: "create_payment" }),
+  pagamento: JSON.stringify({ gateway_code: "pushinpay", environment: "production", payment_context: "main_order" }),
   final: JSON.stringify({ action: "finish" }),
 };
 
@@ -118,12 +119,27 @@ function writeLayout() {
 }
 
 function parsePayload(payload) {
-  if (payload && typeof payload === "object") return payload;
+  if (!payload) return {};
+  if (typeof payload === "object") return payload;
   try {
     return payload ? JSON.parse(payload) : {};
   } catch {
     return {};
   }
+}
+
+// A API espera o payload como texto JSON; texto inválido vira null em vez de quebrar o salvamento.
+function normalizePayloadForSave(payload) {
+  if (payload == null) return null;
+  if (typeof payload === "string") {
+    try {
+      JSON.parse(payload);
+      return payload;
+    } catch {
+      return null;
+    }
+  }
+  return JSON.stringify(payload);
 }
 
 function warningFor(etapa) {
@@ -152,6 +168,16 @@ function buildEdges(etapas) {
 
   etapas.forEach((etapa) => {
     const source = String(etapa.id);
+
+    if (etapa.fallback_etapa_id && ids.has(String(etapa.fallback_etapa_id))) {
+      result.push({
+        id: `${source}-fallback-${etapa.fallback_etapa_id}`,
+        source,
+        target: String(etapa.fallback_etapa_id),
+        label: "FALLBACK",
+        class: "edge-fallback",
+      });
+    }
 
     if (etapa.tipo === "condicao") {
       const { opcoes = {} } = parsePayload(etapa.payload);
@@ -206,8 +232,14 @@ async function load({ keepSelection = false } = {}) {
 
   try {
     const response = await crud.list({ funil_id: funilId });
-    const body = response.data?.data;
-    const etapas = Array.isArray(body) ? body : Array.isArray(body?.list) ? body.list : [];
+    const body = response?.data;
+    const etapas = Array.isArray(body?.data)
+      ? body.data
+      : Array.isArray(body?.data?.list)
+        ? body.data.list
+        : Array.isArray(body?.list)
+          ? body.list
+          : [];
 
     const selectedId = selected.value?.id;
     nodes.value = buildNodes(etapas);
@@ -275,7 +307,7 @@ function updateNode(data) {
 async function persist(etapa, successText) {
   savingNode.value = true;
   try {
-    await crud.update({ ...etapa, id: etapa.id });
+    await crud.update({ ...etapa, id: etapa.id, payload: normalizePayloadForSave(etapa.payload) });
     lastSaved.value = new Date();
     if (successText) notify({ type: "success", title: successText });
     await load({ keepSelection: true });
@@ -296,6 +328,7 @@ function saveNode() {
 async function onConnect({ source, sourceHandle, target }) {
   const etapa = nodes.value.find((n) => n.id === source)?.data.etapa;
   if (!etapa || source === target) return;
+  if (etapa.tipo === "final") return; // etapa final não tem próxima
 
   if (etapa.tipo === "condicao") {
     const payload = parsePayload(etapa.payload);
@@ -457,6 +490,7 @@ onMounted(() => {
 .flow-canvas :deep(.vue-flow__edge-path) { stroke: var(--ch-faint); stroke-width: 2; }
 .flow-canvas :deep(.edge-sim .vue-flow__edge-path) { stroke: var(--ch-ok); }
 .flow-canvas :deep(.edge-nao .vue-flow__edge-path) { stroke: var(--ch-danger); }
+.flow-canvas :deep(.edge-fallback .vue-flow__edge-path) { stroke: var(--ch-danger); stroke-dasharray: 6 4; }
 .flow-canvas :deep(.vue-flow__edge-textbg) { fill: var(--ch-bg); }
 .flow-canvas :deep(.vue-flow__edge-text) { font-size: 12px; font-weight: 700; }
 .flow-canvas :deep(.vue-flow__handle) { width: 12px; height: 12px; background: var(--ch-surface); border: 2px solid var(--ch-accent); }

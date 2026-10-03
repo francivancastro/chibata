@@ -1,5 +1,6 @@
 <script setup>
 import { ref, computed } from "vue";
+import EtapaCamposComuns from "./EtapaCamposComuns.vue";
 
 const props = defineProps({
   etapa: {
@@ -40,6 +41,8 @@ const actions = [
 ];
 
 const acaoSelecionada = ref(null);
+const titulo = ref(props.etapa?.titulo || "");
+const descricao = ref(props.etapa?.descricao || "");
 const ordem = ref(props.etapa?.ordem || "");
 const proxima = ref(props.etapa?.proxima_etapa_id ?? null);
 
@@ -57,6 +60,8 @@ function getPayload() {
 
 function save() {
   emit("update", {
+    titulo: titulo.value,
+    descricao: descricao.value,
     ordem: ordem.value,
     proxima_etapa_id: proxima.value,
     payload: JSON.stringify(
@@ -83,6 +88,11 @@ acaoSelecionada.value = getPayload().action ?? null;
     item-value="value"
     v-model="acaoSelecionada"
     clearable
+  />
+
+  <EtapaCamposComuns
+    v-model:titulo="titulo"
+    v-model:descricao="descricao"
   />
 
   <v-text-field label="Ordem" v-model="ordem" type="number" />
