@@ -69,6 +69,16 @@ Endpoints da primeira versão:
 - `POST /api/chat` — envia uma mensagem ao Codex usando `maestri ask "Codex"`;
 - `GET /api/health` — informa somente disponibilidade da bridge e da CLI.
 
+Todos os endpoints retornam JSON com `schema_version: 1`. Respostas de sucesso incluem `request_id`, `observed_at` em ISO-8601 e `source: "maestri-cli"`. Respostas de erro incluem `ok: false`, `request_id`, `code`, `message` e `retryable`; não incluem stdout bruto, ambiente ou credenciais.
+
+`POST /api/chat` aceita apenas `Content-Type: application/json` com `{ "message": string }`, limita a mensagem a 8.000 caracteres e não aceita argumentos adicionais. Cada envio recebe `message_id` e `request_id`; o timeout é de 120 segundos e não há retry automático para evitar duplicação. O frontend mantém a mensagem pendente até resposta ou erro explícito.
+
+`GET /api/agents` separa `inventory` (o que apareceu no `maestri list`) de `operational_state`. Nomes, workspaces, agentes locais e conexões parciais vêm da saída observada e não são hardcoded. O estado segue esta semântica: `working` somente quando há processo/resposta observável recente; `waiting` quando o agente está conectado mas sem trabalho observável; `offline` quando a CLI ou conexão não está disponível; `unknown` quando o inventário existe mas não há sinal suficiente. Sinais expiram após um TTL documentado e `unknown` nunca vira `working` por animação.
+
+`GET /api/activity` retorna eventos com `event_id`, `type`, `agent`, `source`, `occurred_at`, `observed_at`, `status` e payload seguro. O servidor limita a janela, ordena por `observed_at` e deduplica por `event_id`. Snapshots sem evento próprio são marcados como `source: "snapshot"` e nunca são apresentados como atividade histórica.
+
+`GET /api/health` separa `bridge_up`, `cli_available`, `socket_accessible` e `last_success_at`; HTTP 200 não significa que a CLI esteja disponível.
+
 O bridge não aceitará nome de comando arbitrário, caminho arbitrário ou segredo vindo do browser. O frontend nunca receberá tokens do ambiente.
 
 ## Fluxo de dados
@@ -94,8 +104,10 @@ O bridge não aceitará nome de comando arbitrário, caminho arbitrário ou segr
 ## Segurança e limites
 
 - A bridge escuta somente em loopback.
+- A bridge rejeita hosts diferentes de `127.0.0.1` e `::1` e valida o método e o content type.
 - Nenhuma credencial será lida pelo frontend.
 - Mensagens do usuário são tratadas como dados e não como comandos shell.
+- A bridge aplica limite de tamanho e rate limit local no chat.
 - Nenhum endpoint destrutivo será criado na primeira versão.
 - A aplicação não fará push, merge, instalação ou login automaticamente.
 - Falhas da CLI serão exibidas como indisponibilidade real.
@@ -106,8 +118,10 @@ O bridge não aceitará nome de comando arbitrário, caminho arbitrário ou segr
 - A bridge responde `/api/health` em loopback.
 - O inventário exibido corresponde ao `maestri list` atual.
 - Uma mensagem enviada pelo chat chega ao Codex sem expor credenciais.
+- Uma mensagem chega como um único argumento, mesmo contendo aspas, newline ou caracteres de shell.
 - A resposta do Codex aparece no histórico da sessão.
-- O app diferencia agente trabalhando, aguardando e indisponível.
+- O app diferencia agente trabalhando, aguardando, desconhecido e indisponível com base em sinais observáveis.
+- A bridge distingue erro de CLI, timeout, host inválido e payload inválido sem travar o polling.
 - A tela continua utilizável em desktop e viewport estreita.
 - O SaaS existente permanece sem alterações funcionais.
 
