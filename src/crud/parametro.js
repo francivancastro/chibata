@@ -9,7 +9,7 @@ export default {
 
   fields: [
     { key: "description", label: "Nome", type: "text" },
-    { key: "key", label: "Key", type: "text" },
+    { key: "key", label: "Key", type: "text", required: true },
     { key: "value", label: "Valor", type: "json" },
   ],
 

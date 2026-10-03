@@ -1,30 +1,24 @@
 import Cookies from "js-cookie";
 import http from "@/plugins/axios";
 
+function readConfigCookie() {
+  try {
+    const raw = Cookies.get("config");
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+}
+
 export default {
   namespaced: true,
 
   state() {
-    const raw = Cookies.get("config");
-
-    let config = null;
-
-    try {
-      config = raw ? JSON.parse(raw) : null;
-    } catch (e) {
-      console.log("[CONFIG] invalid cookie JSON");
-      config = null;
-    }
-
-    const isValid =
-      config &&
-      (config.nome?.trim() || config.descricao?.trim());
-
-    console.log("[CONFIG] state init cookie:", config);
-    console.log("[CONFIG] isValid:", isValid);
+    const config = readConfigCookie();
+    const isValid = !!(config && (config.nome?.trim() || config.descricao?.trim()));
 
     return {
-      loaded: isValid, // 🔥 FIX PRINCIPAL
+      loaded: isValid,
       nome: isValid ? config.nome : "",
       descricao: isValid ? config.descricao : "",
     };
@@ -32,67 +26,44 @@ export default {
 
   mutations: {
     SET_CONFIG(state, payload) {
-      console.log("[CONFIG] SET_CONFIG:", payload);
-
       state.nome = payload.nome || "";
       state.descricao = payload.descricao || "";
       state.loaded = true;
 
       Cookies.set(
         "config",
-        JSON.stringify({
-          nome: state.nome,
-          descricao: state.descricao,
-        }),
-        { expires: 1 },
+        JSON.stringify({ nome: state.nome, descricao: state.descricao }),
+        { path: "/", sameSite: "lax", expires: 1 },
       );
     },
 
     CLEAR_CONFIG(state) {
-      console.log("[CONFIG] CLEAR_CONFIG");
-
       state.nome = "";
       state.descricao = "";
       state.loaded = false;
 
-      Cookies.remove("config");
+      Cookies.remove("config", { path: "/" });
     },
   },
 
   actions: {
+    /**
+     * Retorna "ok", "empty" (não existe configuração) ou "error" (API fora / falha).
+     * Antes "error" virava "empty" e levava a criar uma configuração duplicada (A6).
+     */
     async load({ commit, state }) {
-      console.log("[CONFIG] load called");
-
-      // 🔥 agora só bloqueia se for realmente válido
-      if (state.loaded) {
-        console.log("[CONFIG] skipped (valid config already loaded)");
-        return true;
-      }
+      if (state.loaded) return "ok";
 
       try {
-        console.log("[CONFIG] calling API...");
-
         const { data } = await http.post("/configuracao/list");
+        const config = data?.data?.list?.[0];
 
-        console.log("[CONFIG] API response:", data);
-
-        if (data.errno !== 0) return false;
-
-        const config = data.data?.list?.[0];
-
-        console.log("[CONFIG] parsed:", config);
-
-        if (!config) {
-          console.log("[CONFIG] EMPTY CONFIG -> redirect needed");
-          return false;
-        }
+        if (!config) return "empty";
 
         commit("SET_CONFIG", config);
-
-        return true;
-      } catch (err) {
-        console.error("[CONFIG] request error:", err);
-        return false;
+        return "ok";
+      } catch {
+        return "error";
       }
     },
   },

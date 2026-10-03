@@ -1,110 +1,175 @@
 <script setup>
+import { computed } from "vue";
 import { useRouter } from "vue-router";
-import { ref, computed } from "vue";
-import { PhArrowClockwise, PhFolder, PhMagnifyingGlass, PhPlus, PhTreeStructure, PhTray, PhWarningCircle } from "@phosphor-icons/vue";
+import { useStore } from "vuex";
+import { PhArrowClockwise, PhMagnifyingGlass, PhPlus, PhTreeStructure, PhTray, PhWarningCircle } from "@phosphor-icons/vue";
 
 const props = defineProps({
-  config: Object,
-  items: Array,
+  config: { type: Object, required: true },
+  items: { type: Array, default: () => [] },
+  total: { type: Number, default: 0 },
+  page: { type: Number, default: 1 },
+  itemsPerPage: { type: Number, default: 25 },
   loading: Boolean,
-  statusMap: Array,
+  statusMap: { type: Array, default: () => [] },
   error: { type: String, default: "" },
+  search: { type: String, default: "" },
 });
 
-const router = useRouter();
+const emit = defineEmits(["open", "retry", "options", "update:search"]);
 
-const emit = defineEmits(["open", "retry"]);
-const search = ref("");
+const router = useRouter();
+const store = useStore();
+
 const subtitle = computed(() => ({
-  bot: "Configure seus bots e organize os fluxos de atendimento.",
-  funil: "Organize as etapas e conexões da sua automação.",
-  produto: "Mantenha seu catálogo e suas ofertas em um só lugar.",
-  usuario: "Gerencie os usuários que fazem parte da sua operação.",
-  grupo: "Organize os grupos de acesso da sua equipe.",
-  parametro: "Ajuste os parâmetros utilizados pelo sistema.",
-}[props.config.type] || "Organize, consulte e atualize seus registros."));
+  bot: "Cada bot é uma conta do Telegram que responde pelos seus funis.",
+  funil: "As jornadas que levam o contato da primeira mensagem ao pedido.",
+  produto: "O catálogo que os funis oferecem.",
+  usuario: "Quem da equipe acessa o workspace.",
+  grupo: "O que cada grupo pode ver e alterar.",
+  parametro: "Valores usados pelo sistema.",
+}[props.config.type] || ""));
+
+const canAdd = computed(() => store.getters["auth/can"](props.config.type, "add"));
+const canEdit = computed(() => store.getters["auth/can"](props.config.type, "update"));
+
+const headers = computed(() => {
+  const base = props.config.headers.filter((h) => h.key !== "actions");
+  return [...base, { title: "", key: "__open", sortable: false, align: "end", width: 1 }];
+});
+
+const searchModel = computed({
+  get: () => props.search,
+  set: (value) => emit("update:search", value ?? ""),
+});
+
+const resultLabel = computed(() => {
+  if (props.loading && !props.items.length) return "Carregando…";
+  if (props.error) return "";
+  if (!props.total) return props.search ? "Nenhum resultado" : "Nenhum registro";
+  const start = (props.page - 1) * props.itemsPerPage + 1;
+  const end = Math.min(props.page * props.itemsPerPage, props.total);
+  return `${start}–${end} de ${props.total}${props.search ? ` para “${props.search}”` : ""}`;
+});
 
 function goFlow(item) {
-  router.push({
-    name: "funil-editor",
-    params: {
-      id: item.id,
-    },
-  });
+  router.push({ name: "funil-editor", params: { id: item.id } });
 }
 
-function getStatus(value) {
-  return props.statusMap?.find((i) => Number(i.value) === Number(value));
+// Status com um visual só: statusMap da API quando existe; senão 1/true = ativo.
+function statusOf(value, header) {
+  const fromMap = props.statusMap?.find((i) => Number(i.value) === Number(value));
+  if (fromMap) {
+    const tone = /verde|green|success/i.test(fromMap.color || "") ? "ok" : /red|vermelh|error|danger/i.test(fromMap.color || "") ? "danger" : "off";
+    return { label: fromMap.label, tone };
+  }
+  if (header.formatter) return null;
+  if (value === 1 || value === "1" || value === true) return { label: "Ativo", tone: "ok" };
+  if (value === 0 || value === "0" || value === false) return { label: "Pausado", tone: "off" };
+  return null;
 }
 </script>
 
 <template>
   <section class="workspace-page">
-    <header class="page-heading"><div><h1>{{ config.title }}</h1><p class="page-description">{{ subtitle }}</p></div><v-btn color="primary" @click="emit('open', null)"><PhPlus :size="18" weight="regular" aria-hidden="true" />Novo registro</v-btn></header>
-    <div class="records-summary"><span class="records-summary-icon"><PhFolder :size="22" weight="regular" aria-hidden="true" /></span><div><span>Registros visíveis</span><strong>{{ loading || error ? 'n/d' : items?.length ?? 0 }}</strong></div><p>{{ config.title }} nesta página</p></div>
-    <v-card flat class="records-surface">
-    <div class="records-toolbar"><v-text-field v-model="search" label="Buscar registros" hide-details clearable density="compact"><template #prepend-inner><PhMagnifyingGlass :size="18" weight="regular" aria-hidden="true" /></template></v-text-field><v-btn variant="text" :loading="loading" @click="emit('retry')"><PhArrowClockwise :size="17" weight="regular" aria-hidden="true" />Atualizar</v-btn></div>
-    <div v-if="error" class="records-error" role="alert">
-      <PhWarningCircle :size="30" weight="regular" aria-hidden="true" />
-      <strong>Não foi possível carregar os registros</strong>
-      <p>{{ error }}</p>
-      <v-btn variant="outlined" size="small" @click="emit('retry')">Tentar novamente</v-btn>
-    </div>
-    <v-data-table
-      v-else
-      class="records-table"
-      :items="items"
-      :search="search || ''"
-      :loading="loading"
-      :headers="config.headers"
-      disable-sort
-      @click:row="(_, row) => emit('open', row.item)"
-    >
-      <!-- HEADER -->
-      <template #no-data>
-        <div class="records-empty"><PhTray :size="34" weight="regular" aria-hidden="true" /><h2>Nenhum registro encontrado</h2><p>{{ search ? 'Experimente outro termo de busca.' : 'Crie seu primeiro registro para começar.' }}</p></div>
-      </template>
+    <header class="page-heading">
+      <div>
+        <h1>{{ config.title }}</h1>
+        <p v-if="subtitle" class="page-description">{{ subtitle }}</p>
+      </div>
+      <v-btn v-if="canAdd" color="primary" @click="emit('open', null)">
+        <PhPlus :size="18" aria-hidden="true" />Novo registro
+      </v-btn>
+    </header>
 
-      <!-- CELULAS -->
-      <template
-        v-for="h in config.headers"
-        :key="h.key"
-        v-slot:[`item.${h.key}`]="{ value, item }"
+    <div class="panel records-surface">
+      <div class="records-toolbar">
+        <v-text-field
+          v-model="searchModel"
+          label="Buscar em todos os registros"
+          hide-details
+          clearable
+          density="compact"
+          class="records-search"
+        >
+          <template #prepend-inner><PhMagnifyingGlass :size="18" aria-hidden="true" /></template>
+        </v-text-field>
+        <span class="records-count" aria-live="polite">{{ resultLabel }}</span>
+        <v-btn variant="text" :loading="loading" @click="emit('retry')">
+          <PhArrowClockwise :size="17" aria-hidden="true" />Atualizar
+        </v-btn>
+      </div>
+
+      <div v-if="error" class="state-block records-error" role="alert">
+        <PhWarningCircle :size="30" aria-hidden="true" />
+        <h2>Não foi possível carregar os registros</h2>
+        <p>{{ error }}</p>
+        <v-btn variant="outlined" @click="emit('retry')">Tentar novamente</v-btn>
+      </div>
+
+      <v-data-table-server
+        v-else
+        class="records-table"
+        :headers="headers"
+        :items="items"
+        :items-length="total"
+        :page="page"
+        :items-per-page="itemsPerPage"
+        :items-per-page-options="[10, 25, 50, 100]"
+        :loading="loading"
+        disable-sort
+        @update:options="emit('options', $event)"
+        @click:row="(_, row) => emit('open', row.item)"
       >
-        <!-- AÇÕES -->
-        <template v-if="h.key === 'actions'">
-          <v-btn
-            v-if="config.actions"
-            size="small"
-            variant="text"
-            @click.stop="goFlow(item)"
-          ><PhTreeStructure :size="18" weight="regular" aria-hidden="true" /></v-btn>
+        <template #no-data>
+          <div class="state-block">
+            <PhTray :size="32" aria-hidden="true" />
+            <h2>{{ search ? "Nada encontrado" : "Nenhum registro ainda" }}</h2>
+            <p>{{ search ? "Tente outro termo de busca." : canAdd ? "Crie o primeiro registro para começar." : "Quando houver registros, eles aparecem aqui." }}</p>
+          </div>
         </template>
 
-        <!-- STATUS -->
-        <v-chip
-          v-else-if="h.key === 'status' && getStatus(value)"
-          :color="getStatus(value).color"
-          size="small"
-          variant="outlined"
-        >
-          {{ getStatus(value).label }}
-        </v-chip>
+        <template v-for="h in config.headers" :key="h.key" #[`item.${h.key}`]="{ value }">
+          <template v-if="h.key === 'status' && statusOf(value, h)">
+            <span :class="['status-dot', `status-dot--${statusOf(value, h).tone}`]">{{ statusOf(value, h).label }}</span>
+          </template>
+          <span v-else-if="h.formatter">{{ h.formatter(value) }}</span>
+          <span v-else-if="h.key !== 'actions'">{{ value ?? "—" }}</span>
+        </template>
 
-        <!-- FORMATTER -->
-        <span v-else-if="h.formatter">
-          {{ h.formatter(value) }}
-        </span>
-
-        <!-- DEFAULT -->
-        <span v-else>
-          {{ value }}
-        </span>
-      </template>
-    </v-data-table>
-  </v-card>
+        <template #[`item.__open`]="{ item }">
+          <div class="row-actions">
+            <v-btn
+              v-if="config.actions"
+              size="small"
+              variant="outlined"
+              :aria-label="`Abrir fluxo de ${item.nome || item.name || 'registro'}`"
+              @click.stop="goFlow(item)"
+            >
+              <PhTreeStructure :size="16" aria-hidden="true" />Fluxo
+            </v-btn>
+            <v-btn size="small" variant="outlined" @click.stop="emit('open', item)">
+              {{ canEdit ? "Editar" : "Ver" }}
+            </v-btn>
+          </div>
+        </template>
+      </v-data-table-server>
+    </div>
   </section>
 </template>
+
 <style scoped>
-.records-summary{display:flex;align-items:center;gap:16px;padding:20px 24px;border:1px solid var(--cc-border);border-radius:16px;background:var(--cc-surface);margin-bottom:24px}.records-summary-icon{display:grid;place-items:center;width:44px;height:44px;border-radius:12px;background:var(--cc-raised);color:var(--cc-accent)}.records-summary span,.records-summary p{font-size:12px;color:var(--cc-muted)}.records-summary strong{display:block;font-size:26px;line-height:1.2;margin-top:4px;font-variant-numeric:tabular-nums}.records-summary p{margin-left:auto}.records-surface{overflow:hidden}.records-toolbar{display:flex;gap:16px;align-items:center;justify-content:space-between;padding:20px;border-bottom:1px solid var(--cc-border)}.records-toolbar .v-input{max-width:460px}.records-toolbar .v-btn,.page-heading .v-btn{gap:8px}.records-error{display:grid;place-content:center;justify-items:center;gap:8px;min-height:236px;padding:32px 24px;color:var(--cc-danger);text-align:center}.records-error strong{color:var(--cc-text);font-size:14px;font-weight:650}.records-error p{max-width:48ch;margin:0;color:var(--cc-muted);font-size:13px;line-height:1.55}.records-error svg{opacity:.92}.records-error .v-btn{margin-top:8px;color:var(--cc-accent);border-color:var(--cc-border-strong)}.records-empty{padding:48px 16px;text-align:center;color:var(--cc-accent)}.records-empty h2{color:var(--cc-text);font-size:18px;margin:16px 0 8px}.records-empty p{font-size:13px;color:var(--cc-muted)}@media(max-width:600px){.records-toolbar{flex-direction:column;align-items:stretch;padding:16px}.records-toolbar .v-input{width:100%}.records-summary{padding:16px}.records-summary p{display:none}}
+.records-surface { overflow: hidden; }
+.records-toolbar { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; padding: 14px 16px; border-bottom: 1px solid var(--ch-line); }
+.records-search { flex: 1 1 280px; max-width: 440px; }
+.records-count { margin-left: auto; font-size: 13px; color: var(--ch-muted); font-variant-numeric: tabular-nums; }
+.records-error { color: var(--ch-danger); }
+.row-actions { display: flex; justify-content: flex-end; gap: 8px; white-space: nowrap; }
+.row-actions .v-btn { min-height: 36px; }
+.records-table :deep(td:first-child) { font-weight: 600; }
+@media (max-width: 600px) {
+  .records-toolbar { padding: 12px; }
+  .records-search { max-width: none; }
+  .records-count { margin-left: 0; }
+}
 </style>

@@ -1,8 +1,8 @@
-import { useStore } from "vuex";
+// store importado direto: useStore() só funciona dentro de setup(), e
+// transformSave roda no clique de Salvar (M3).
+import store from "@/store";
 
 const getUsuarioId = () => {
-  const store = useStore();
-
   return store.state.auth.user?.usuario?.id ?? store.state.auth.user?.id;
 };
 
@@ -29,6 +29,7 @@ export default {
       key: "nome",
       label: "Nome",
       type: "text",
+      required: true,
     },
 
     {
@@ -76,7 +77,7 @@ export default {
       status: statusValue,
       configuracoes:
         typeof model?.configuracoes === "string"
-          ? JSON.parse(model.configuracoes || "{}")
+          ? JSON.parse(model.configuracoes || "{}") // CrudDialog já bloqueia JSON inválido
           : (model?.configuracoes ?? {}),
     };
   },

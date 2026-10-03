@@ -1,78 +1,115 @@
 <template>
-  <v-navigation-drawer v-model="drawer" :width="isMobile ? 280 : 256" class="shell-sidebar" app>
-    <template #prepend>
-      <div class="shell-brand brand-wordmark"><span class="brand-symbol"><PhChatCenteredText :size="22" weight="regular" /></span>chibata</div>
-      <div class="shell-workspace"><strong>{{ systemName || 'Meu workspace' }}</strong>{{ systemDescription || 'Central de relacionamento' }}</div>
-      <p class="shell-nav-label">Workspace</p>
-    </template>
+  <v-navigation-drawer v-model="drawer" :width="232" class="shell-sidebar" app>
+    <div class="shell-brand"><span class="brand-symbol" aria-hidden="true">c</span>chibata</div>
+    <div class="shell-workspace">
+      <strong>{{ systemName || "Meu workspace" }}</strong>
+      <span>{{ systemDescription || "Workspace" }}</span>
+    </div>
 
-    <v-list class="pt-0">
-      <div v-for="(item, i) in routes" :key="i">
-        <v-list-item
-          v-if="item.to ? services.includes(item.to) : true"
-          :to="item.to ? '/' + item.to : '/'"
-        >
-          <template #prepend>
-            <component :is="item.icon" class="shell-icon" :size="19" :weight="routeIsActive(item.to) ? 'duotone' : 'regular'" aria-hidden="true" />
-          </template>
-
-          <v-list-item-title>
-            {{ item.title }}
-          </v-list-item-title>
-        </v-list-item>
-      </div>
-    </v-list>
+    <nav aria-label="Navegação principal">
+      <template v-for="section in visibleSections" :key="section.label">
+        <p class="shell-nav-label">{{ section.label }}</p>
+        <v-list class="pt-0" density="compact" nav>
+          <v-list-item
+            v-for="item in section.items"
+            :key="item.to"
+            :to="item.to"
+            :exact="item.to === '/'"
+            :active="isActive(item.to)"
+          >
+            <template #prepend>
+              <component :is="item.icon" class="shell-icon" :size="18" aria-hidden="true" />
+            </template>
+            <v-list-item-title>{{ item.title }}</v-list-item-title>
+          </v-list-item>
+        </v-list>
+      </template>
+    </nav>
 
     <template #append>
-      <v-footer class="shell-account d-flex align-center">
-        <v-avatar size="36" color="primary" variant="tonal">
-          <PhUserCircle :size="20" weight="regular" />
+      <div class="shell-account d-flex align-center">
+        <v-avatar size="32" color="primary" variant="tonal">
+          <span class="text-caption font-weight-bold">{{ initials }}</span>
         </v-avatar>
-
-        <div class="ml-2">
-          <div class="shell-account-name">{{ user?.usuario?.nome || 'Minha conta' }}</div>
-
-          <v-btn size="x-small" variant="text" @click="logout"><PhSignOut :size="15" weight="regular" aria-hidden="true" />Sair</v-btn>
+        <div class="flex-grow-1" style="min-width: 0">
+          <div class="shell-account-name text-truncate">{{ userName }}</div>
+          <div class="shell-account-role text-truncate">{{ userRole }}</div>
         </div>
-      </v-footer>
+        <v-btn icon variant="text" aria-label="Sair" @click="logout">
+          <PhSignOut :size="18" aria-hidden="true" />
+        </v-btn>
+      </div>
     </template>
   </v-navigation-drawer>
 </template>
 
 <script setup>
-import { computed } from "vue";
-import { useStore } from "vuex";
+import { computed, watch } from "vue";
 import { useDisplay } from "vuetify";
-import { useRouter } from "vue-router";
+import { useStore } from "vuex";
+import { useRoute, useRouter } from "vue-router";
 import { clearLocalPreview } from "@/utils/local-preview";
-import { useRoute } from "vue-router";
 import {
   PhBracketsCurly,
   PhChatCenteredText,
+  PhFileText,
   PhFunnel,
+  PhGearSix,
   PhHouseLine,
-  PhKey,
   PhRobot,
   PhShoppingBag,
   PhSignOut,
-  PhTrayArrowDown,
-  PhTruck,
-  PhUserCircle,
   PhUserList,
   PhUsersThree,
 } from "@phosphor-icons/vue";
 
 const store = useStore();
-const display = useDisplay();
-const router = useRouter();
 const route = useRoute();
+const router = useRouter();
 
-const services = computed(() => store.getters["auth/getServices"]);
+const sections = [
+  {
+    label: "Operação",
+    items: [
+      { title: "Visão geral", to: "/", icon: PhHouseLine },
+      { title: "Inbox", to: "/inbox", service: "inbox", icon: PhChatCenteredText },
+      { title: "Funis", to: "/funil", service: "funil", icon: PhFunnel },
+      { title: "Bots", to: "/bot", service: "bot", icon: PhRobot },
+      { title: "Produtos", to: "/produto", service: "produto", icon: PhShoppingBag },
+    ],
+  },
+  {
+    label: "Administração",
+    items: [
+      { title: "Usuários", to: "/usuario", service: "usuario", icon: PhUserList },
+      { title: "Grupos de acesso", to: "/grupo", service: "grupo", icon: PhUsersThree },
+      { title: "Parâmetros", to: "/parametro", service: "parametro", icon: PhBracketsCurly },
+      { title: "Auditoria", to: "/log", service: "log", icon: PhFileText },
+      { title: "Configuração", to: "/configuracao", icon: PhGearSix },
+    ],
+  },
+];
+
+const can = computed(() => store.getters["auth/can"]);
+const visibleSections = computed(() =>
+  sections
+    .map((section) => ({ ...section, items: section.items.filter((item) => can.value(item.service)) }))
+    .filter((section) => section.items.length),
+);
 
 const user = computed(() => store.state.auth.user);
+const userName = computed(() => user.value?.usuario?.nome || user.value?.nome || "Minha conta");
+const userRole = computed(() => user.value?.usuario?.grupo?.name || user.value?.grupo?.name || "Workspace");
+const initials = computed(() =>
+  userName.value
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0].toUpperCase())
+    .join(""),
+);
 
 const systemName = computed(() => store.getters["config/getNome"]);
-
 const systemDescription = computed(() => store.getters["config/getDescricao"]);
 
 const drawer = computed({
@@ -80,71 +117,23 @@ const drawer = computed({
   set: (value) => store.commit("drawer/SET_DRAWER", value),
 });
 
-const isMobile = computed(() => ["xs", "sm"].includes(display.name.value));
+const display = useDisplay();
+// No celular, o menu fecha ao trocar de tela.
+watch(
+  () => route.fullPath,
+  () => {
+    if (display.mdAndDown.value) store.commit("drawer/SET_DRAWER", false);
+  },
+);
+
+function isActive(path) {
+  return path === "/" ? route.path === "/" : route.path === path || route.path.startsWith(`${path}/`);
+}
 
 function logout() {
   clearLocalPreview();
   store.commit("auth/LOGOUT");
   store.commit("config/CLEAR_CONFIG");
-  store.commit("drawer/SET_DRAWER", false);
-
   router.push("/login");
 }
-
-function routeIsActive(path) {
-  return path ? route.path.startsWith(`/${path}`) : route.path === "/";
-}
-
-const routes = [
-  {
-    icon: PhHouseLine,
-    title: "Início",
-    to: "",
-  },
-  {
-    icon: PhRobot,
-    title: "Bot",
-    to: "bot",
-  },
-  {
-    icon: PhTrayArrowDown,
-    title: "Inbox",
-    to: "inbox",
-  },
-  {
-    icon: PhFunnel,
-    title: "Funil",
-    to: "funil",
-  },
-  {
-    icon: PhShoppingBag,
-    title: "Produtos",
-    to: "produto",
-  },
-  {
-    icon: PhUsersThree,
-    title: "Grupos",
-    to: "grupo",
-  },
-  {
-    icon: PhUserList,
-    title: "Usuários",
-    to: "usuario",
-  },
-  {
-    icon: PhTruck,
-    title: "Obras",
-    to: "projeto",
-  },
-  {
-    icon: PhBracketsCurly,
-    title: "Parametro",
-    to: "parametro",
-  },
-  {
-    icon: PhKey,
-    title: "Logs",
-    to: "log",
-  },
-];
 </script>

@@ -24,6 +24,10 @@ const {
   loadConversations,
   selectConversation,
   submitMessage,
+  retryMessage,
+  startPolling,
+  lastUpdated,
+  messageKey,
 } = useInbox();
 
 const statusFilter = ref("all");
@@ -107,11 +111,21 @@ async function chooseConversation(conversation) {
 
 async function send() {
   if (!canSend()) return;
-  const sent = await submitMessage(messageDraft.value);
-  if (sent) messageDraft.value = "";
+  const draft = messageDraft.value;
+  if (!draft.trim()) return;
+  // A mensagem entra na conversa na hora (enviando / falhou com "Tentar de novo"),
+  // então o rascunho pode ser limpo já.
+  messageDraft.value = "";
+  await submitMessage(draft);
 }
 
+const updatedLabel = computed(() => {
+  if (!lastUpdated.value) return "";
+  return `Atualizado às ${new Intl.DateTimeFormat("pt-BR", { timeStyle: "short" }).format(lastUpdated.value)}`;
+});
+
 function handleComposerKeydown(event) {
+  if (event.isComposing) return;
   if (event.key === "Enter" && !event.shiftKey) {
     event.preventDefault();
     send();
@@ -120,6 +134,7 @@ function handleComposerKeydown(event) {
 
 onMounted(async () => {
   await Promise.all([loadChannels(), refreshConversations()]);
+  startPolling();
 });
 </script>
 
@@ -131,7 +146,7 @@ onMounted(async () => {
         <p>Uma fila única para acompanhar cada conversa da operação.</p>
       </div>
       <div class="inbox-header-meta">
-        <span class="inbox-header-note">Fila de atendimento</span>
+        <span v-if="!isLocalPreview" class="inbox-live" role="status"><span class="inbox-live-dot" aria-hidden="true"></span>Ao vivo<template v-if="updatedLabel"> · {{ updatedLabel }}</template></span>
         <v-btn icon variant="text" class="inbox-refresh" aria-label="Atualizar conversas" :loading="loadingConversations" @click="refreshConversations()"><PhArrowClockwise :size="19" weight="regular" aria-hidden="true" /></v-btn>
       </div>
     </header>
@@ -189,7 +204,7 @@ onMounted(async () => {
         <div v-else-if="!conversations.length" class="empty-state"><PhChatCenteredText :size="30" weight="regular" aria-hidden="true" /><span>Nenhuma conversa encontrada.</span><small>As novas mensagens aparecerão nesta fila.</small></div>
         <v-list v-else lines="two" class="conversation-items">
           <v-list-item v-for="conversation in conversations" :key="conversation.id" :active="selectedConversation?.id === conversation.id" @click="chooseConversation(conversation)">
-            <template #prepend><PhChatCenteredText :size="19" :color="selectedConversation?.id === conversation.id ? 'var(--cc-accent)' : 'var(--cc-muted)'" weight="regular" aria-hidden="true" /></template>
+            <template #prepend><PhChatCenteredText :size="19" :color="selectedConversation?.id === conversation.id ? 'var(--ch-accent)' : 'var(--ch-muted)'" aria-hidden="true" /></template>
             <v-list-item-title class="font-weight-medium">{{ conversation.contact?.nome || conversation.contact?.name || (conversation.contact_id ? `Contato #${conversation.contact_id}` : "Contato não informado") }}</v-list-item-title>
             <v-list-item-subtitle class="text-truncate">{{ conversation.last_message || conversation.lastMessage ? messageText(conversation.last_message || conversation.lastMessage) : "Última mensagem não disponível" }}</v-list-item-subtitle>
             <template #append><div class="conversation-meta"><span>{{ channelName(conversation) }}</span><small>{{ formatDate(conversation.data_atualizacao || conversation.updated_at) }}</small></div></template>
@@ -208,11 +223,15 @@ onMounted(async () => {
 
           <v-alert v-if="errorMessages" type="error" variant="tonal" density="compact" class="ma-3">{{ errorMessages }}</v-alert>
           <div class="messages-area" aria-live="polite" aria-label="Mensagens da conversa">
-            <v-progress-circular v-if="loadingMessages" indeterminate color="primary" />
+            <div v-if="loadingMessages" class="state-block"><v-progress-circular indeterminate color="primary" /></div>
             <div v-else-if="!messages.length" class="empty-state">Nenhuma mensagem nesta conversa.</div>
             <div v-else class="message-stack">
-              <div v-for="message in messages" :key="message.id || message.external_message_id" class="message-row" :class="[message.direction === 'outgoing' ? 'outgoing' : 'incoming', `sender-${message.sender_type || 'contact'}`]">
-                <div class="message-bubble"><div class="message-label">{{ senderLabel(message) }} <span v-if="message.status">· {{ message.status }}</span></div><div>{{ messageText(message) }}</div><small>{{ formatDate(message.data_cadastro || message.created_at) }}</small></div>
+              <div v-for="message in messages" :key="messageKey(message)" class="message-row" :class="[message.direction === 'outgoing' ? 'outgoing' : 'incoming', `sender-${message.sender_type || 'contact'}`, message._state ? `is-${message._state}` : '']">
+                <div class="message-bubble"><div class="message-label">{{ senderLabel(message) }} <span v-if="message.status">· {{ message.status }}</span></div><div>{{ messageText(message) }}</div><small>{{ message._state === 'sending' ? 'Enviando…' : formatDate(message.data_cadastro || message.created_at) }}</small></div>
+                <div v-if="message._state === 'failed'" class="message-failed" role="alert">
+                  <span>Não enviada. {{ message._error }}</span>
+                  <v-btn size="small" variant="outlined" class="btn-danger" @click="retryMessage(message)">Tentar de novo</v-btn>
+                </div>
               </div>
             </div>
           </div>
@@ -233,24 +252,28 @@ onMounted(async () => {
 .inbox-page { height: calc(100dvh - 64px); display: flex; flex-direction: column; padding: 22px 24px 24px; background: var(--cc-canvas); }
 .inbox-header { display: flex; align-items: flex-end; justify-content: space-between; gap: 18px; margin-bottom: 18px; }
 .inbox-header-copy p { margin: 5px 0 0; color: var(--cc-muted); font-size: 13px; }
-.inbox-title { margin: 4px 0 0; color: var(--cc-text); font-size: clamp(26px, 3vw, 34px); font-weight: 650; letter-spacing: -.035em; }
+.inbox-title { margin: 4px 0 0; color: var(--ch-ink); font-family: var(--ch-display); font-size: clamp(28px, 3vw, 36px); font-weight: 700; letter-spacing: -.02em; }
 .inbox-header-meta { display: flex; align-items: center; gap: 10px; }
 .inbox-status { display: inline-flex; align-items: center; gap: 7px; padding: 7px 10px; border: 1px solid var(--cc-border); border-radius: 999px; color: var(--cc-muted); background: var(--cc-surface); font-size: 11px; }
 .inbox-status-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--cc-warning); box-shadow: 0 0 0 3px color-mix(in srgb, var(--cc-warning) 14%, transparent); }
 .mobile-tabs { display: flex; gap: 4px; margin-bottom: 10px; }
-.inbox-grid { min-height: 0; flex: 1; display: grid; grid-template-columns: 208px minmax(300px, 360px) minmax(0, 1fr); overflow: hidden; border: 1px solid var(--cc-border); border-radius: 18px; background: var(--cc-surface); box-shadow: 0 16px 48px rgba(0, 0, 0, .12); }
+.inbox-grid { min-height: 0; flex: 1; display: grid; grid-template-columns: 208px minmax(300px, 360px) minmax(0, 1fr); overflow: hidden; border: 1px solid var(--cc-border); border-radius: 18px; background: var(--cc-surface); }
 .filters-panel, .conversation-list { min-width: 0; overflow-y: auto; border-right: 1px solid var(--cc-border); }
 .filters-panel { padding: 18px 13px; background: var(--cc-subtle); }
 .panel-heading { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; padding: 0 12px 13px; color: var(--cc-text); font-size: 12px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
 .panel-heading small { color: var(--cc-faint); font-size: 10px; font-weight: 500; letter-spacing: 0; text-transform: none; }
-.filter-toggle { display: flex; flex-direction: column; align-items: stretch; margin-bottom: 18px; }
-.filter-toggle .v-btn { justify-content: flex-start; min-height: 36px; padding-inline: 12px; color: var(--cc-muted); font-size: 12px; }
+/* V2: o v-btn-toggle tinha altura fixa e cortava "Abertas" e "Fechadas". */
+.filter-toggle { display: grid !important; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px; height: auto !important; width: 100%; margin-bottom: 18px; padding: 4px; border: 0 !important; border-radius: var(--ch-radius) !important; background: var(--ch-sunken); }
+.filter-toggle .v-btn { min-width: 0 !important; min-height: 36px !important; height: 36px !important; padding-inline: 4px !important; border: 0 !important; border-radius: 7px !important; background: transparent; color: var(--ch-ink-2); font-size: 13px; font-weight: 500; }
+.filter-toggle .v-btn.v-btn--active { background: var(--ch-surface); color: var(--ch-ink); font-weight: 600; box-shadow: 0 1px 2px rgba(22, 24, 27, .1); }
+.filter-toggle .v-btn .v-btn__overlay { display: none; }
 .conversation-list { background: var(--cc-surface); }
 .conversation-count { display: grid; place-items: center; min-width: 24px; height: 22px; padding-inline: 6px; border: 1px solid var(--cc-border); border-radius: 7px; color: var(--cc-muted); font-size: 10px; font-weight: 600; letter-spacing: 0; }
 .conversation-items { padding: 0; }
 .conversation-items .v-list-item { border-top: 1px solid var(--cc-border); cursor: pointer; padding: 13px 14px; transition: background .16s var(--cc-ease), border-color .16s var(--cc-ease); }
 .conversation-items .v-list-item:hover { background: var(--cc-subtle); }
-.conversation-items .v-list-item--active { border-left: 2px solid var(--cc-accent); background: color-mix(in srgb, var(--cc-accent) 9%, var(--cc-surface)); }
+.conversation-items :deep(.v-list-item.v-list-item--active) { background: var(--ch-accent-soft) !important; }
+.conversation-items :deep(.v-list-item--active > .v-list-item__overlay) { opacity: 0; }
 .conversation-meta { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; color: var(--cc-muted); font-size: 10px; }
 .conversation-meta small { color: var(--cc-faint); }
 .conversation-panel { min-width: 0; display: flex; flex-direction: column; background: var(--cc-surface); }
@@ -265,12 +288,22 @@ onMounted(async () => {
 .message-row { display: flex; max-width: 78%; }
 .message-row.outgoing { align-self: flex-end; }
 .message-bubble { border-radius: 13px; padding: 10px 13px; border: 1px solid var(--cc-border); background: var(--cc-surface); color: var(--cc-text); font-size: 14px; white-space: pre-wrap; overflow-wrap: anywhere; }
-.outgoing .message-bubble { border-color: color-mix(in srgb, var(--cc-accent) 35%, var(--cc-border)); background: color-mix(in srgb, var(--cc-accent) 8%, var(--cc-surface)); }
-.sender-bot .message-bubble { background: color-mix(in srgb, var(--cc-warning) 5%, var(--cc-surface)); }
-.sender-human .message-bubble { background: color-mix(in srgb, var(--cc-accent) 6%, var(--cc-surface)); }
+.message-row { flex-direction: column; }
+.outgoing { align-items: flex-end; }
+.outgoing .message-bubble { border-color: var(--ch-sunken); background: var(--ch-sunken); }
+.outgoing.sender-human .message-bubble { border-color: var(--ch-accent); background: var(--ch-accent); color: #FFFFFF; }
+.outgoing.sender-human .message-label, .outgoing.sender-human .message-bubble small { color: rgba(255, 255, 255, .78) !important; }
+.is-sending .message-bubble { opacity: .7; }
+.message-row.is-failed .message-bubble { border: 1px dashed var(--ch-danger) !important; background: var(--ch-surface) !important; color: var(--ch-ink) !important; }
+.message-row.is-failed .message-label, .message-row.is-failed .message-bubble small { color: var(--ch-muted) !important; }
+.message-failed { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 8px; margin-top: 6px; font-size: 12px; color: var(--ch-danger); }
+.inbox-live { display: inline-flex; align-items: center; gap: 7px; font-size: 13px; color: var(--ch-ok); }
+.inbox-live-dot { width: 7px; height: 7px; border-radius: 999px; background: currentColor; }
+
+
 .sender-system .message-bubble { background: var(--cc-subtle); }
 .message-label { margin-bottom: 4px; color: var(--cc-muted); font-size: 11px; font-weight: 700; }
-.sender-bot .message-label { color: var(--cc-warning); }
+.sender-bot .message-label { color: var(--ch-muted); }
 .sender-human .message-label { color: var(--cc-accent); }
 .message-bubble small { display: block; margin-top: 6px; color: var(--cc-faint); font-size: 10px; }
 .composer { padding: 14px 18px 16px; border-top: 1px solid var(--cc-border); background: var(--cc-surface); }

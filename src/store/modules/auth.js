@@ -1,45 +1,61 @@
 import Cookies from "js-cookie";
 
+// path "/" sempre: antes era "" e o navegador gravava um cookie por pasta da URL,
+// que o logout não apagava (A5).
+const COOKIE = {
+  path: "/",
+  sameSite: "lax",
+  secure: typeof window !== "undefined" && window.location.protocol === "https:",
+};
+
+function readJsonCookie(name) {
+  const raw = Cookies.get(name);
+  if (!raw) return null;
+  try {
+    return JSON.parse(raw);
+  } catch {
+    Cookies.remove(name, { path: "/" });
+    return null;
+  }
+}
+
+function removeEverywhere(name) {
+  Cookies.remove(name, { path: "/" });
+  // Limpa cópias antigas gravadas com path vazio (diretório da URL atual).
+  Cookies.remove(name, { path: "" });
+}
+
 export default {
   namespaced: true,
 
   state() {
-    const user = Cookies.get("user");
+    const user = readJsonCookie("user");
 
     return {
-      user: user ? JSON.parse(user) : null,
+      user,
       userToken: Cookies.get("token") || "",
       refreshToken: Cookies.get("refreshToken") || "",
-      permissions: user ? JSON.parse(user)?.permissionList || [] : [],
+      permissions: user?.permissionList || [],
     };
   },
 
   mutations: {
     LOGIN(state, payload) {
       state.userToken = payload.accessToken;
-      state.refreshToken = payload.refreshToken || "";
+      state.refreshToken = payload.refreshToken || state.refreshToken || "";
 
-      Cookies.set("token", payload.accessToken, {
-        path: "",
-        expires: 1,
-      });
+      Cookies.set("token", payload.accessToken, { ...COOKIE, expires: 1 });
 
       if (payload.refreshToken) {
-        Cookies.set("refreshToken", payload.refreshToken, {
-          path: "",
-          expires: 7,
-        });
+        Cookies.set("refreshToken", payload.refreshToken, { ...COOKIE, expires: 7 });
       }
     },
 
     setUserData(state, payload) {
       state.user = payload;
-      state.permissions = payload.permissionList || [];
+      state.permissions = payload?.permissionList || [];
 
-      Cookies.set("user", JSON.stringify(payload), {
-        path: "",
-        expires: 1,
-      });
+      Cookies.set("user", JSON.stringify(payload), { ...COOKIE, expires: 1 });
     },
 
     LOGOUT(state) {
@@ -48,10 +64,7 @@ export default {
       state.refreshToken = "";
       state.permissions = [];
 
-      Cookies.remove("user");
-      Cookies.remove("token");
-      Cookies.remove("refreshToken");
-      Cookies.remove("config");
+      ["user", "token", "refreshToken", "config"].forEach(removeEverywhere);
     },
   },
 
@@ -67,7 +80,7 @@ export default {
       const temp = {};
 
       state.permissions.forEach((element) => {
-        const [service, permission] = element.split(":");
+        const [service, permission] = String(element).split(":");
 
         if (permission) {
           if (!temp[service]) temp[service] = [];
@@ -78,8 +91,13 @@ export default {
       return temp;
     },
 
-    getServices: (state, getters) => {
-      return Object.keys(getters.getPermissions);
+    getServices: (state, getters) => Object.keys(getters.getPermissions),
+
+    can: (state, getters) => (service, action) => {
+      if (!service) return true;
+      const list = getters.getPermissions[service];
+      if (!list) return false;
+      return action ? list.includes(action) : true;
     },
   },
 };

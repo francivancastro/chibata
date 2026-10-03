@@ -1,6 +1,5 @@
 <script setup>
 import { computed } from "vue";
-import { useCrud } from "@/composables/useCrud";
 
 const props = defineProps({
   etapa: Object,
@@ -8,7 +7,6 @@ const props = defineProps({
 });
 
 const emit = defineEmits(["update", "save"]);
-const { create: createEtapa, update: updateEtapa } = useCrud("funil-etapa");
 
 const payload = computed(() => {
   try {
@@ -55,42 +53,11 @@ function updateOrdem(value) {
   });
 }
 
-function isNewEtapa() {
-  return !props.etapa?.id || String(props.etapa.id).startsWith("temp-");
-}
-
-async function saveEtapa() {
-  const dataToSave = {
-    ...props.etapa,
-    payload: JSON.stringify(payload.value, null, 2),
-  };
-
-  try {
-    if (isNewEtapa()) {
-      const { id, ...rest } = dataToSave;
-      const response = await createEtapa(rest);
-      const created = response?.data?.data ?? response?.data?.item ?? response?.data ?? {};
-      const persisted = {
-        ...dataToSave,
-        ...created,
-        id: created?.id ?? dataToSave.id,
-      };
-
-      emit("update", persisted);
-      emit("save", persisted);
-      return;
-    }
-
-    await updateEtapa({
-      id: dataToSave.id,
-      ...dataToSave,
-    });
-
-    emit("update", dataToSave);
-    emit("save", dataToSave);
-  } catch (error) {
-    console.error("Erro ao salvar etapa:", error);
-  }
+// Antes este editor salvava na API e o pai salvava de novo (duas requisições, M9).
+// Agora só entrega os dados; quem persiste é o FunilEditor.
+function saveEtapa() {
+  emit("update", { ...props.etapa, payload: JSON.stringify(payload.value, null, 2) });
+  emit("save");
 }
 
 function updateOpcao(label, value) {

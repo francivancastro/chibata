@@ -1,19 +1,19 @@
 <template>
   <v-card class="auth-card" variant="flat">
-    <header class="auth-form-heading"><h2>Crie sua conta</h2><p>Seu próximo atendimento começa com uma conexão.</p></header>
+    <header class="auth-form-heading"><h2>Criar conta</h2><p>Leva um minuto. Depois você conecta seu primeiro bot.</p></header>
 
     <v-form ref="formRef" v-model="formValid" @submit.prevent="register">
       <v-text-field
         v-model="form.nome"
         label="Nome"
         :rules="[requiredRule]"
-      ><template #prepend-inner><PhUser :size="18" weight="regular" aria-hidden="true" /></template></v-text-field>
+      ></v-text-field>
 
       <v-text-field
         v-model="form.email"
         label="E-mail"
         :rules="[requiredRule, emailRule]"
-      ><template #prepend-inner><PhEnvelope :size="18" weight="regular" aria-hidden="true" /></template></v-text-field>
+      ></v-text-field>
 
       <v-text-field
         v-model="form.username"
@@ -22,21 +22,22 @@
         :error-messages="usernameError"
         :loading="checkingUsername"
         @blur="checkUsername"
-      ><template #prepend-inner><PhAt :size="18" weight="regular" aria-hidden="true" /></template></v-text-field>
+      ></v-text-field>
 
       <v-text-field
         v-model="form.password"
         label="Senha"
         :type="showPassword ? 'text' : 'password'"
         :rules="[requiredRule]"
-      ><template #prepend-inner><PhLock :size="18" weight="regular" aria-hidden="true" /></template><template #append-inner><button type="button" class="password-toggle" :aria-label="showPassword ? 'Ocultar senha' : 'Mostrar senha'" @click="showPassword = !showPassword"><component :is="showPassword ? PhEyeSlash : PhEye" :size="18" weight="regular" aria-hidden="true" /></button></template></v-text-field>
+      ><template #append-inner><button type="button" class="password-toggle" 
+:aria-label="showPassword ? 'Ocultar senha' : 'Mostrar senha'" :aria-pressed="showPassword" @click="showPassword = !showPassword"><component :is="showPassword ? PhEyeSlash : PhEye" :size="20" aria-hidden="true" /></button></template></v-text-field>
 
       <v-text-field
         v-model="form.confirmPassword"
         label="Repetir senha"
         :type="showPassword ? 'text' : 'password'"
         :rules="[requiredRule, passwordMatchRule]"
-      ><template #prepend-inner><PhLockKey :size="18" weight="regular" aria-hidden="true" /></template></v-text-field>
+      ></v-text-field>
 
       <v-btn
         :loading="isLoading"
@@ -48,7 +49,7 @@
         Cadastrar
       </v-btn>
 
-      <v-alert v-if="isError" class="mt-4" type="error" variant="tonal" density="compact">Não foi possível concluir o cadastro. Confira os campos e tente novamente.</v-alert>
+      <v-alert v-if="isError" class="mt-4" type="error" variant="tonal" density="compact" role="alert">{{ errorText }}</v-alert>
     </v-form>
     <RouterLink class="auth-back" to="/login">Já tem uma conta? Entrar</RouterLink>
   </v-card>
@@ -57,8 +58,9 @@
 <script setup>
 import { ref } from "vue";
 import { useRouter } from "vue-router";
-import http from "@/plugins/axios";
-import { PhAt, PhEnvelope, PhEye, PhEyeSlash, PhLock, PhLockKey, PhUser } from "@phosphor-icons/vue";
+import http, { errorMessage } from "@/plugins/axios";
+import { notify } from "@kyvg/vue3-notification";
+import { PhEye, PhEyeSlash } from "@phosphor-icons/vue";
 
 const router = useRouter();
 
@@ -66,6 +68,7 @@ const formRef = ref(null);
 
 const isLoading = ref(false);
 const isError = ref(false);
+const errorText = ref("");
 const showPassword = ref(false);
 const formValid = ref(false);
 
@@ -97,9 +100,12 @@ async function validateUsername() {
   usernameError.value = "";
 
   try {
-    const { data } = await http.post("/usuario/isUsuarioExist", {
-      username: form.value.username,
-    });
+    // allowErrno: aqui errno 1 é resposta esperada ("usuário já existe"), não falha.
+    const { data } = await http.post(
+      "/usuario/isUsuarioExist",
+      { username: form.value.username },
+      { allowErrno: true },
+    );
 
     if (data.errno === 1) {
       usernameError.value = data.msg;
@@ -134,21 +140,18 @@ async function register() {
   isError.value = false;
 
   try {
-    const { data } = await http.post("/usuario/register", {
+    await http.post("/usuario/register", {
       nome: form.value.nome,
       email: form.value.email,
       username: form.value.username,
       password: form.value.password,
     });
 
-    if (data.errno !== 0) {
-      isError.value = true;
-      return;
-    }
-
+    notify({ type: "success", title: "Conta criada", text: "Entre com o usuário e a senha que você acabou de criar." });
     router.push("/login");
-  } catch {
+  } catch (err) {
     isError.value = true;
+    errorText.value = errorMessage(err, "Não foi possível concluir o cadastro. Confira os campos e tente novamente.");
   } finally {
     isLoading.value = false;
   }

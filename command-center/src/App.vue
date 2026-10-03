@@ -29,12 +29,12 @@ onBeforeUnmount(() => window.clearInterval(refreshTimer))
     <div class="office-workspace">
       <header class="office-topbar">
         <button class="menu-button" aria-label="Abrir legenda" :aria-expanded="sidebarOpen" aria-controls="office-sidebar" @click="sidebarOpen = true">☰</button>
-        <div class="topbar-title"><span class="topbar-mark">⌁</span><div><strong>Command Center Office</strong><span>vila operacional / {{ state.summary.observed }} agentes observados</span></div></div>
+        <div class="topbar-title"><span class="topbar-mark">⌁</span><div><strong>Command Center Office</strong><span>escritório / {{ state.summary.observed }} agentes observados</span></div></div>
         <div class="topbar-actions"><span class="live-status"><i class="health-light" :class="{ online: state.health?.cli_available }"></i>{{ state.health?.cli_available ? 'live' : 'sem confirmação' }}</span><button class="refresh-button" aria-label="Atualizar estado" @click="refresh">↻</button></div>
       </header>
 
       <main class="office-main">
-        <section class="map-header"><div><p class="eyebrow">MAPA DE OPERAÇÃO</p><h1>Uma sala para cada movimento.</h1><p class="map-subtitle">Converse com o Codex, acompanhe os agentes e veja a evidência por trás de cada estado.</p></div><div class="map-stats"><span><b>{{ state.summary.observed }}</b> observados</span><span><b>{{ state.summary.offline }}</b> indisponíveis</span><small>última leitura {{ updatedLabel }}</small></div></section>
+        <section class="map-header"><div><p class="eyebrow">MAPA DE OPERAÇÃO</p><h1>Seu time, no mesmo espaço.</h1><p class="map-subtitle">Selecione um agente para ver sua atividade e continuar a conversa.</p></div><div class="map-stats"><span><b>{{ state.summary.observed }}</b> observados</span><span><b>{{ state.summary.offline }}</b> indisponíveis</span><small>última leitura {{ updatedLabel }}</small></div></section>
         <div v-if="state.error" class="bridge-alert" role="alert"><span>!</span><div><strong>A bridge precisa de atenção.</strong><p>{{ state.error }}</p></div><button @click="refresh">Tentar novamente</button></div>
         <div class="office-map-area">
           <nav class="mobile-tabs" aria-label="Modo do escritório">
@@ -45,6 +45,7 @@ onBeforeUnmount(() => window.clearInterval(refreshTimer))
           <section class="office-map" :class="{ 'mobile-panel-hidden': mobileMode !== 'map' }" aria-label="Mapa interativo do escritório virtual">
             <div v-if="state.loading" class="map-loading">Carregando o mapa operacional...</div>
             <PhaserOffice v-else :agents="rooms" :selected="selectedRoom" @select="selectAgent" />
+            <div class="map-caption"><span>ESTÚDIO / PISO 01</span><span>{{ rooms.length ? 'Selecione um agente no mapa' : 'Aguardando conexão dos agentes' }}</span></div>
           </section>
         </div>
         <section class="office-lower-grid" :class="{ 'mobile-chat-visible': mobileMode === 'chat' }"><OrchestratorChat :messages="state.messages" :sending="state.sending" :target="selectedRoom" :health="state.health" @send="sendMessage" /><ActivityFeed :events="state.activity" /></section>

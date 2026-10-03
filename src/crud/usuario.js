@@ -22,7 +22,7 @@ export default {
   ],
 
   fields: [
-    { key: "nome", label: "Nome", type: "text" },
+    { key: "nome", label: "Nome", type: "text", required: true },
     { key: "cpf", label: "CPF", type: "text" },
     { key: "email", label: "Email", type: "text" },
 

@@ -1,17 +1,17 @@
 <template>
   <div class="auth-layout">
     <aside class="auth-story">
-      <div class="brand-wordmark"><span class="brand-symbol"><PhChatCenteredText :size="23" weight="regular" aria-hidden="true" /></span>chibata<span class="text-medium-emphasis font-weight-regular">crm</span></div>
+      <div class="brand-wordmark"><span class="brand-symbol" aria-hidden="true">c</span>chibata</div>
       <div class="auth-story-copy">
-        <h1>Boas conversas.<br>Novas possibilidades.</h1>
-        <p class="page-description">Conecte pessoas, organize atendimentos e dê mais espaço para o que faz sua empresa crescer.</p>
+        <h1>O bot vende.<br>Você entra quando importa.</h1>
+        <p>Funis no Telegram que levam o cliente da primeira mensagem ao pagamento, e uma inbox para quando ele precisa de uma pessoa.</p>
       </div>
-      <div class="auth-story-footer"><span><PhChatCenteredText :size="16" weight="regular" aria-hidden="true" />Atendimento</span><span><PhGitBranch :size="16" weight="regular" aria-hidden="true" />Automação</span><span><PhUsersThree :size="16" weight="regular" aria-hidden="true" />Relacionamento</span></div>
+      <div class="auth-story-chat" aria-hidden="true">
+        <span class="in">Quero o kit inverno M</span>
+        <span class="out">Fechado! Já gerei seu pix.</span>
+        <small>Etapa Pagamento</small>
+      </div>
     </aside>
     <section class="auth-panel"><slot /></section>
   </div>
 </template>
-
-<script setup>
-import { PhChatCenteredText, PhGitBranch, PhUsersThree } from "@phosphor-icons/vue";
-</script>

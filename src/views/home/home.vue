@@ -1,141 +1,232 @@
 <template>
-  <v-container class="workspace-page home-page">
+  <section class="workspace-page home-page">
     <header class="page-heading">
       <div>
-        <h1>Seu workspace, conectado.</h1>
-        <p class="page-description">Organize o atendimento, gerencie seus registros e construa novas possibilidades para sua equipe.</p>
+        <p class="page-eyebrow">{{ today }}</p>
+        <h1>{{ greeting }}</h1>
       </div>
-      <v-chip variant="tonal" color="primary"><PhSquaresFour :size="16" weight="regular" aria-hidden="true" />Visão geral</v-chip>
+      <div class="home-actions">
+        <v-btn v-if="can('funil')" variant="outlined" to="/funil">Funis</v-btn>
+        <v-btn v-if="can('inbox')" color="primary" variant="flat" to="/inbox">
+          Abrir inbox<PhArrowRight :size="16" aria-hidden="true" />
+        </v-btn>
+      </div>
     </header>
 
-    <section v-if="primaryShortcut" class="home-command-surface">
-      <div class="home-command-primary">
-        <span class="home-command-mark" aria-hidden="true">
-          <PhChatCenteredText :size="26" weight="regular" />
-        </span>
-        <div class="home-command-copy">
-          <span class="home-module-label">Entrada central</span>
-          <h2>Comece pelo atendimento.</h2>
-          <p>Abra a fila de conversas e conduza cada contato com contexto, foco e continuidade.</p>
-          <RouterLink :to="primaryShortcut.to" class="home-command-action">
-            Abrir {{ primaryShortcut.title }}
-            <PhArrowUpRight :size="17" weight="regular" aria-hidden="true" />
-          </RouterLink>
-        </div>
-      </div>
+    <div v-if="isLocalPreview" class="home-preview" role="status">
+      Prévia local: os números e listas aparecem quando a API estiver conectada.
+    </div>
 
-      <div class="home-command-rail" aria-label="Próximas áreas">
-        <RouterLink v-for="item in secondaryShortcuts" :key="item.to" :to="item.to" class="home-rail-link">
-          <span class="home-rail-icon" aria-hidden="true">
-            <component :is="item.icon" :size="19" weight="regular" />
-          </span>
-          <span class="home-rail-copy">
-            <strong>{{ item.title }}</strong>
-            <small>{{ item.description }}</small>
-          </span>
-          <PhArrowUpRight class="home-rail-arrow" :size="16" weight="regular" aria-hidden="true" />
-        </RouterLink>
+    <section class="home-stats" aria-label="Resumo da operação">
+      <div v-for="stat in stats" :key="stat.label" class="home-stat">
+        <span class="home-stat-label">{{ stat.label }}</span>
+        <span class="home-stat-value mono">{{ stat.value }}</span>
+        <RouterLink v-if="stat.to" :to="stat.to" class="home-stat-link">{{ stat.link }}</RouterLink>
       </div>
     </section>
 
-    <section v-if="remainingShortcuts.length" class="home-tools">
-      <div class="home-section-heading">
-        <div>
-          <h2>Ferramentas de trabalho</h2>
+    <div class="home-grid">
+      <section v-if="can('inbox')" class="panel home-queue">
+        <div class="panel-head">
+          <h2>Conversas abertas</h2>
+          <RouterLink to="/inbox">Ver fila completa</RouterLink>
         </div>
-        <span>{{ remainingShortcuts.length }} áreas disponíveis</span>
-      </div>
-      <div class="home-tool-list">
-        <RouterLink v-for="item in remainingShortcuts" :key="item.to" :to="item.to" class="home-tool-row">
-          <span class="home-tool-icon" aria-hidden="true">
-            <component :is="item.icon" :size="20" weight="regular" />
+        <div v-if="queue.loading" class="state-block"><v-progress-circular indeterminate color="primary" size="28" /></div>
+        <p v-else-if="queue.error" class="home-empty" role="alert">{{ queue.error }}</p>
+        <p v-else-if="!queue.items.length" class="home-empty">Nenhuma conversa aberta agora.</p>
+        <RouterLink v-for="c in queue.items" v-else :key="c.id" to="/inbox" class="queue-row">
+          <span class="avatar" aria-hidden="true">{{ initials(contactName(c)) }}</span>
+          <span class="queue-copy">
+            <strong>{{ contactName(c) }}</strong>
+            <span>{{ lastMessage(c) }}</span>
           </span>
-          <span class="home-tool-copy">
-            <strong>{{ item.title }}</strong>
-            <small>{{ item.description }}</small>
-          </span>
-          <span class="home-tool-link">
-            Abrir
-            <PhArrowUpRight :size="16" weight="regular" aria-hidden="true" />
-          </span>
+          <span class="queue-time mono">{{ relative(c.data_atualizacao || c.updated_at) }}</span>
         </RouterLink>
-      </div>
-    </section>
+      </section>
 
-    <v-card v-if="!available.length" class="empty-panel" variant="outlined">
-      <PhKey :size="36" weight="regular" color="var(--cc-accent)" aria-hidden="true" />
-      <h2>Seu acesso está sendo preparado</h2>
-      <p>As áreas disponíveis aparecem aqui conforme as permissões da sua conta.</p>
-    </v-card>
-  </v-container>
+      <section v-if="can('bot')" class="panel">
+        <div class="panel-head">
+          <h2>Bots</h2>
+          <RouterLink to="/bot">Gerenciar</RouterLink>
+        </div>
+        <div v-if="bots.loading" class="state-block"><v-progress-circular indeterminate color="primary" size="28" /></div>
+        <p v-else-if="bots.error" class="home-empty" role="alert">{{ bots.error }}</p>
+        <p v-else-if="!bots.items.length" class="home-empty">Nenhum bot conectado. <RouterLink to="/bot">Conectar o primeiro</RouterLink></p>
+        <ul v-else class="bot-list">
+          <li v-for="b in bots.items" :key="b.id">
+            <span class="bot-name">{{ b.nome }}</span>
+            <span :class="['status-dot', isActive(b.status) ? 'status-dot--ok' : 'status-dot--off']">{{ isActive(b.status) ? "Ativo" : "Pausado" }}</span>
+          </li>
+        </ul>
+      </section>
+    </div>
+
+    <section class="home-shortcuts" aria-label="Atalhos">
+      <RouterLink v-for="item in shortcuts" :key="item.to" :to="item.to" class="shortcut">
+        <component :is="item.icon" :size="20" aria-hidden="true" />
+        <span><strong>{{ item.title }}</strong><small>{{ item.description }}</small></span>
+      </RouterLink>
+    </section>
+  </section>
 </template>
 
 <script setup>
-import { computed } from "vue";
+import { computed, onMounted, reactive } from "vue";
 import { useStore } from "vuex";
 import {
-  PhArrowUpRight,
+  PhArrowRight,
   PhBracketsCurly,
-  PhChatCenteredText,
   PhFunnel,
-  PhKey,
   PhRobot,
-  PhSquaresFour,
   PhShoppingBag,
-  PhTrayArrowDown,
   PhUserList,
   PhUsersThree,
 } from "@phosphor-icons/vue";
+import http, { errorMessage } from "@/plugins/axios";
+import { listConversations } from "@/services/messaging";
+import { isLocalPreviewEnabled } from "@/utils/local-preview";
 
 const store = useStore();
-const shortcuts = [
-  { to: "/inbox", service: "inbox", title: "Caixa de entrada", description: "Converse com seus contatos e acompanhe os atendimentos.", icon: PhTrayArrowDown },
-  { to: "/bot", service: "bot", title: "Bots de atendimento", description: "Configure respostas e organize suas automações.", icon: PhRobot },
-  { to: "/funil", service: "funil", title: "Funis e fluxos", description: "Conecte as etapas de cada jornada de atendimento.", icon: PhFunnel },
-  { to: "/produto", service: "produto", title: "Catálogo de produtos", description: "Mantenha as informações das suas ofertas organizadas.", icon: PhShoppingBag },
-  { to: "/usuario", service: "usuario", title: "Sua equipe", description: "Consulte e gerencie os usuários da operação.", icon: PhUserList },
-  { to: "/grupo", service: "grupo", title: "Grupos de acesso", description: "Organize as permissões para cada grupo de trabalho.", icon: PhUsersThree },
-  { to: "/parametro", service: "parametro", title: "Parâmetros", description: "Ajuste as definições que orientam a operação.", icon: PhBracketsCurly },
+const isLocalPreview = isLocalPreviewEnabled();
+
+const can = (service) => store.getters["auth/can"](service);
+
+const userName = computed(() => {
+  const user = store.state.auth.user;
+  return (user?.usuario?.nome || user?.nome || "").split(" ")[0];
+});
+
+const today = new Intl.DateTimeFormat("pt-BR", { weekday: "long", day: "numeric", month: "long" }).format(new Date());
+const greeting = computed(() => {
+  const hour = new Date().getHours();
+  const part = hour < 12 ? "Bom dia" : hour < 18 ? "Boa tarde" : "Boa noite";
+  return userName.value ? `${part}, ${userName.value}.` : `${part}.`;
+});
+
+const queue = reactive({ loading: false, error: "", items: [], total: null });
+const bots = reactive({ loading: false, error: "", items: [], total: null });
+const funis = reactive({ total: null });
+
+const stats = computed(() => [
+  can("inbox") && { label: "Conversas abertas", value: queue.total ?? "—", to: "/inbox", link: "Abrir inbox" },
+  can("bot") && { label: "Bots", value: bots.total ?? "—", to: "/bot", link: "Ver bots" },
+  can("funil") && { label: "Funis", value: funis.total ?? "—", to: "/funil", link: "Ver funis" },
+].filter(Boolean));
+
+const allShortcuts = [
+  { to: "/funil", service: "funil", title: "Funis", description: "Etapas de cada jornada", icon: PhFunnel },
+  { to: "/bot", service: "bot", title: "Bots", description: "Contas do Telegram", icon: PhRobot },
+  { to: "/produto", service: "produto", title: "Produtos", description: "Catálogo dos funis", icon: PhShoppingBag },
+  { to: "/usuario", service: "usuario", title: "Usuários", description: "Quem acessa o workspace", icon: PhUserList },
+  { to: "/grupo", service: "grupo", title: "Grupos de acesso", description: "Permissões por grupo", icon: PhUsersThree },
+  { to: "/parametro", service: "parametro", title: "Parâmetros", description: "Valores do sistema", icon: PhBracketsCurly },
 ];
-const available = computed(() => shortcuts.filter((item) => store.getters["auth/getServices"].includes(item.service)));
-const primaryShortcut = computed(() => available.value[0]);
-const secondaryShortcuts = computed(() => available.value.slice(1, 3));
-const remainingShortcuts = computed(() => available.value.slice(3));
+const shortcuts = computed(() => allShortcuts.filter((s) => can(s.service)));
+
+function contactName(c) {
+  return c?.contact?.nome || c?.contact?.name || (c?.contact_id ? `Contato #${c.contact_id}` : "Contato");
+}
+function lastMessage(c) {
+  const m = c?.last_message || c?.lastMessage;
+  if (!m) return "Sem prévia da última mensagem";
+  return typeof m === "string" ? m : m.content || "Mensagem";
+}
+function initials(name) {
+  return name.split(/\s+/).filter(Boolean).slice(0, 2).map((p) => p[0].toUpperCase()).join("");
+}
+function isActive(status) {
+  return status === 1 || status === "1" || status === true;
+}
+function relative(value) {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  const minutes = Math.round((Date.now() - date.getTime()) / 60000);
+  if (minutes < 1) return "agora";
+  if (minutes < 60) return `${minutes} min`;
+  if (minutes < 1440) return `${Math.round(minutes / 60)} h`;
+  return new Intl.DateTimeFormat("pt-BR", { day: "2-digit", month: "2-digit" }).format(date);
+}
+
+async function loadQueue() {
+  queue.loading = true;
+  try {
+    const { data } = await listConversations({ status: "open", pageSize: 5, currentPage: 1 });
+    const body = data?.data ?? {};
+    queue.items = Array.isArray(body) ? body : body.list || [];
+    queue.total = Number(body.total ?? queue.items.length);
+  } catch (err) {
+    queue.error = errorMessage(err, "Não foi possível carregar a fila.");
+  } finally {
+    queue.loading = false;
+  }
+}
+
+async function loadBots() {
+  bots.loading = true;
+  try {
+    const { data } = await http.post("/bot/list", { pageSize: 6, currentPage: 1 });
+    bots.items = data?.data?.list || [];
+    bots.total = Number(data?.data?.total ?? bots.items.length);
+  } catch (err) {
+    bots.error = errorMessage(err, "Não foi possível carregar os bots.");
+  } finally {
+    bots.loading = false;
+  }
+}
+
+async function loadFunis() {
+  try {
+    const { data } = await http.post("/funil/list", { pageSize: 1, currentPage: 1 });
+    funis.total = Number(data?.data?.total ?? (data?.data?.list || []).length);
+  } catch {
+    funis.total = null;
+  }
+}
+
+onMounted(() => {
+  if (isLocalPreview) return;
+  if (can("inbox")) loadQueue();
+  if (can("bot")) loadBots();
+  if (can("funil")) loadFunis();
+});
 </script>
 
 <style scoped>
-.home-page { padding-bottom: 48px; }
-.home-command-surface { display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(280px, .65fr); gap: 1px; overflow: hidden; margin: 8px 0 38px; border: 1px solid var(--cc-border); border-radius: 20px; background: var(--cc-border); }
-.home-command-primary, .home-command-rail { background: var(--cc-surface); }
-.home-command-primary { display: flex; align-items: flex-start; gap: 20px; padding: clamp(26px, 4vw, 48px); }
-.home-command-mark { display: grid; place-items: center; flex: 0 0 auto; width: 52px; height: 52px; border: 1px solid color-mix(in srgb, var(--cc-accent) 42%, var(--cc-border)); border-radius: 15px; color: var(--cc-accent); background: color-mix(in srgb, var(--cc-accent) 9%, var(--cc-surface)); }
-.home-command-copy { max-width: 620px; }
-.home-command-copy h2 { margin: 10px 0 12px; color: var(--cc-text); font-size: clamp(25px, 3vw, 38px); line-height: 1.08; letter-spacing: -.035em; }
-.home-command-copy p { max-width: 510px; margin: 0; color: var(--cc-muted); font-size: 14px; line-height: 1.65; }
-.home-command-action { display: inline-flex; align-items: center; gap: 9px; margin-top: 26px; padding: 11px 15px; border: 1px solid var(--cc-accent); border-radius: 10px; color: var(--cc-on-accent); background: var(--cc-accent); font-size: 13px; font-weight: 700; text-decoration: none; transition: transform .18s var(--cc-ease), background .18s var(--cc-ease); }
-.home-command-action:hover { background: var(--cc-accent-strong); transform: translateY(-1px); }
-.home-command-rail { display: flex; flex-direction: column; justify-content: center; padding: 18px; background: var(--cc-subtle); }
-.home-rail-link { display: grid; grid-template-columns: 38px minmax(0, 1fr) 18px; align-items: center; gap: 12px; min-height: 86px; padding: 14px; border-bottom: 1px solid var(--cc-border); color: var(--cc-text); text-decoration: none; transition: background .18s var(--cc-ease), border-color .18s var(--cc-ease); }
-.home-rail-link:last-child { border-bottom: 0; }
-.home-rail-link:hover { border-color: var(--cc-accent); background: var(--cc-raised); }
-.home-rail-icon, .home-tool-icon { display: grid; place-items: center; color: var(--cc-accent); }
-.home-rail-icon { width: 38px; height: 38px; border: 1px solid var(--cc-border-strong); border-radius: 11px; background: var(--cc-raised); }
-.home-rail-copy, .home-tool-copy { display: flex; min-width: 0; flex-direction: column; gap: 4px; }
-.home-rail-copy strong, .home-tool-copy strong { overflow: hidden; color: var(--cc-text); font-size: 13px; font-weight: 650; text-overflow: ellipsis; white-space: nowrap; }
-.home-rail-copy small, .home-tool-copy small { overflow: hidden; color: var(--cc-muted); font-size: 11px; line-height: 1.45; text-overflow: ellipsis; white-space: nowrap; }
-.home-rail-arrow, .home-tool-link { color: var(--cc-faint); }
-.home-section-heading { display: flex; align-items: flex-end; justify-content: space-between; gap: 18px; margin-bottom: 16px; }
-.home-section-heading h2 { margin: 4px 0 0; color: var(--cc-text); font-size: 19px; letter-spacing: -.02em; }
-.home-section-heading > span { color: var(--cc-muted); font-size: 12px; }
-.home-tool-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1px; overflow: hidden; border: 1px solid var(--cc-border); border-radius: 16px; background: var(--cc-border); }
-.home-tool-row { display: grid; grid-template-columns: 38px minmax(0, 1fr) auto; align-items: center; gap: 13px; min-width: 0; min-height: 78px; padding: 14px 16px; background: var(--cc-surface); color: var(--cc-text); text-decoration: none; transition: background .18s var(--cc-ease); }
-.home-tool-row:hover { background: var(--cc-subtle); }
-.home-tool-icon { width: 38px; height: 38px; border: 1px solid var(--cc-border); border-radius: 11px; background: var(--cc-raised); }
-.home-tool-link { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; font-weight: 650; white-space: nowrap; }
-.empty-panel { display: grid; place-items: center; gap: 10px; padding: 52px 24px; text-align: center; }
-.empty-panel h2 { margin: 0; color: var(--cc-text); font-size: 18px; }
-.empty-panel p { max-width: 420px; margin: 0; color: var(--cc-muted); font-size: 13px; }
-@media (max-width: 900px) { .home-command-surface { grid-template-columns: 1fr; } .home-command-rail { padding: 10px 18px 18px; } .home-rail-link { min-height: 70px; } }
-@media (max-width: 640px) { .home-page { padding-inline: 14px; } .page-heading { align-items: flex-start; flex-direction: column; } .home-command-primary { padding: 24px 20px; } .home-command-mark { display: none; } .home-command-copy h2 { font-size: 27px; } .home-tool-list { grid-template-columns: 1fr; } .home-section-heading { align-items: flex-start; flex-direction: column; gap: 5px; } }
-@media (prefers-reduced-motion: reduce) { .home-command-action, .home-rail-link, .home-tool-row { transition: none; } }
+.home-actions { display: flex; flex-wrap: wrap; gap: 10px; }
+.home-preview { margin-bottom: 20px; padding: 12px 16px; border-radius: var(--ch-radius); background: var(--ch-warn-soft); color: var(--ch-warn-ink); font-size: 14px; }
+
+.home-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1px; margin-bottom: 20px; overflow: hidden; border: 1px solid var(--ch-line); border-radius: var(--ch-radius-lg); background: var(--ch-line); }
+.home-stat { display: flex; flex-direction: column; gap: 6px; padding: 18px 22px; background: var(--ch-surface); }
+.home-stat-label { font-size: 13px; color: var(--ch-muted); }
+.home-stat-value { font-size: 34px; font-weight: 500; letter-spacing: -.02em; line-height: 1.1; color: var(--ch-ink); }
+.home-stat-link { font-size: 13px; font-weight: 500; }
+
+.home-grid { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); gap: 20px; margin-bottom: 20px; }
+.home-empty { margin: 0; padding: 20px; font-size: 14px; color: var(--ch-muted); }
+.queue-row { display: flex; align-items: center; gap: 14px; padding: 14px 20px; border-top: 1px solid var(--ch-line-soft); color: var(--ch-ink) !important; text-decoration: none; }
+.queue-row:first-of-type { border-top: 0; }
+.queue-row:hover { background: #F7F9FF; }
+.avatar { width: 36px; height: 36px; flex-shrink: 0; display: inline-flex; align-items: center; justify-content: center; border-radius: 999px; background: var(--ch-accent-soft); color: var(--ch-accent); font-size: 13px; font-weight: 600; }
+.queue-copy { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.queue-copy strong { font-size: 14px; font-weight: 600; }
+.queue-copy span { font-size: 13px; color: var(--ch-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.queue-time { font-size: 12px; color: var(--ch-muted); }
+
+.bot-list { list-style: none; margin: 0; padding: 4px 20px 12px; }
+.bot-list li { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 0; border-top: 1px solid var(--ch-line-soft); }
+.bot-list li:first-child { border-top: 0; }
+.bot-name { font-size: 14px; }
+
+.home-shortcuts { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; }
+.shortcut { display: flex; align-items: center; gap: 12px; min-height: 64px; padding: 12px 16px; border: 1px solid var(--ch-line); border-radius: var(--ch-radius-lg); background: var(--ch-surface); color: var(--ch-ink) !important; text-decoration: none; }
+.shortcut svg { color: var(--ch-accent); flex-shrink: 0; }
+.shortcut span { display: flex; flex-direction: column; }
+.shortcut strong { font-size: 14px; font-weight: 600; }
+.shortcut small { font-size: 12px; color: var(--ch-muted); }
+.shortcut:hover { border-color: var(--ch-accent-line); }
+
+@media (max-width: 900px) {
+  .home-grid { grid-template-columns: 1fr; }
+}
 </style>

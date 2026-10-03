@@ -8,7 +8,7 @@
       <router-view />
     </v-main>
 
-    <notifications position="bottom left" />
+    <notifications position="bottom right" :max="4" :duration="5000" />
   </v-app>
 </template>
 
@@ -23,33 +23,22 @@ import Drawer from "@/components/Drawer.vue";
 const store = useStore();
 const route = useRoute();
 
-const hiddenRoutes = ["Login", "Obras"];
-
 const isLogged = computed(() => store.getters["auth/isLogged"]);
 
-const showNavigation = computed(() => {
-  return isLogged.value && !hiddenRoutes.includes(route.name);
-});
+// O editor de funil usa a tela inteira; login e cadastro não têm navegação.
+const showNavigation = computed(
+  () => isLogged.value && !route.meta.guestOnly && !route.meta.fullscreen && route.name !== undefined,
+);
 </script>
 
 <style>
-/* custom scrollbar */
-::-webkit-scrollbar {
-  width: 11px;
-}
-
-::-webkit-scrollbar-track {
-  background-color: var(--cc-canvas);
-}
-
+::-webkit-scrollbar { width: 11px; height: 11px; }
+::-webkit-scrollbar-track { background-color: var(--ch-bg); }
 ::-webkit-scrollbar-thumb {
-  background-color: var(--cc-border);
+  background-color: var(--ch-line-strong);
   border-radius: 20px;
   border: 3px solid transparent;
   background-clip: content-box;
 }
-
-::-webkit-scrollbar-thumb:hover {
-  background-color: var(--cc-muted);
-}
+::-webkit-scrollbar-thumb:hover { background-color: var(--ch-faint); }
 </style>

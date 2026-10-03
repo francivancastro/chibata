@@ -1,5 +1,3 @@
-import { useStore } from "vuex";
-
 export default {
   type: "produto",
   title: "Produtos",
@@ -25,6 +23,7 @@ export default {
       key: "nome",
       label: "Nome",
       type: "text",
+      required: true,
     },
     {
       key: "descricao",

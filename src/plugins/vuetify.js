@@ -1,19 +1,14 @@
 import 'vuetify/styles'
+// Os ícones internos do Vuetify (setas de select, checkbox, paginação) usam o conjunto mdi.
 import '@mdi/font/css/materialdesignicons.css'
-import '@/assets/styles/command-center.css'
+import '@/assets/styles/chibata.css'
 
 import { createVuetify } from 'vuetify'
 import * as components from 'vuetify/components'
 import * as directives from 'vuetify/directives'
 import { pt } from 'vuetify/locale'
 
-const BANDEIRA = {
-  marrom: '#663300',
-  azul: '#0000ff',
-  verde: '#006600',
-  amarelo: '#fff000'
-}
-
+// Mesmos valores de src/assets/styles/chibata.css (--ch-*). Um tema só, claro.
 export default createVuetify({
   components,
   directives,
@@ -24,63 +19,37 @@ export default createVuetify({
   },
 
   theme: {
-    defaultTheme: 'darkModular',
+    defaultTheme: 'chibata',
     themes: {
-      darkModular: {
-        dark: true,
-        colors: {
-          primary: '#00D084', 'on-primary': '#06251C',
-          secondary: '#91A4C0', 'on-secondary': '#111827',
-          accent: '#00E596', background: '#111827', surface: '#172033',
-          'surface-variant': '#1D2940', 'on-surface': '#F1F5F9',
-          'on-background': '#F1F5F9', 'on-surface-variant': '#91A4C0',
-          error: '#F08A82', 'on-error': '#281214', info: '#91A4C0',
-          success: '#00D084', warning: '#F0B35B'
-        }
-      },
-      editorial: {
+      chibata: {
         dark: false,
         colors: {
-          primary: '#10243A', 'on-primary': '#F4F0E7',
-          secondary: '#B69A62', 'on-secondary': '#10243A',
-          accent: '#B69A62', background: '#F4F0E7', surface: '#FBF9F4',
-          'surface-variant': '#EBE4D8', 'on-surface': '#10243A',
-          'on-background': '#10243A', 'on-surface-variant': '#59616B',
-          error: '#9A5B50', 'on-error': '#F4F0E7', info: '#59616B',
-          success: '#627B66', warning: '#A76F3D'
-        }
-      },
-      obsidian: {
-        dark: true,
-        colors: {
-          primary: '#A7D8CB', 'on-primary': '#12201D',
-          secondary: '#A8AEAF', 'on-secondary': '#111315',
-          accent: '#C1F0E4', background: '#111315', surface: '#181B1E',
-          'surface-variant': '#202428', 'on-surface': '#F1F0EB',
-          'on-background': '#F1F0EB', 'on-surface-variant': '#A8AEAF',
-          error: '#E8A5A0', 'on-error': '#351716',
-          info: '#A7D8CB', success: '#9FD5B1', warning: '#E2C18A',
-        },
-      },
-      light: {
-        colors: {
-          primary: '#1371B4',
-          secondary: BANDEIRA.marrom,
-          accent: BANDEIRA.azul,
-          error: '#FF5252',
-          info: '#2196F3',
-          success: BANDEIRA.verde,
-          warning: BANDEIRA.amarelo
+          background: '#F4F5F1',
+          surface: '#FFFFFF',
+          'surface-variant': '#ECEEE8',
+          'on-background': '#16181B',
+          'on-surface': '#16181B',
+          'on-surface-variant': '#4A4F57',
+          primary: '#2346D8',
+          'on-primary': '#FFFFFF',
+          secondary: '#16181B',
+          'on-secondary': '#FFFFFF',
+          error: '#B42318',
+          'on-error': '#FFFFFF',
+          info: '#2346D8',
+          success: '#1F7A4A',
+          warning: '#A35200'
         }
       }
     }
   },
   defaults: {
-    VBtn: { rounded: 'lg', elevation: 0 },
-    VCard: { rounded: 'lg', elevation: 0 },
-    VTextField: { variant: 'outlined', density: 'comfortable', rounded: 'lg', color: 'primary' },
-    VSelect: { variant: 'outlined', density: 'comfortable', rounded: 'lg', color: 'primary' },
-    VTextarea: { variant: 'outlined', density: 'comfortable', rounded: 'lg', color: 'primary' },
+    VBtn: { elevation: 0 },
+    VCard: { elevation: 0 },
+    VTextField: { variant: 'outlined', density: 'comfortable', color: 'primary' },
+    VSelect: { variant: 'outlined', density: 'comfortable', color: 'primary' },
+    VTextarea: { variant: 'outlined', density: 'comfortable', color: 'primary' },
     VDataTable: { hover: true },
+    VDataTableServer: { hover: true },
   }
 })
