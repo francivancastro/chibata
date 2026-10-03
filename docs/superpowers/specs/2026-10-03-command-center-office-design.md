@@ -27,6 +27,8 @@ Criar um frontend separado para funcionar como escritório virtual do projeto Ch
 7. Respostas de erro explícitas quando Maestri estiver indisponível.
 8. Layout responsivo para desktop e janela estreita.
 
+Cada sala observada deve expor, nesta ordem: identidade e origem; tarefa atual; status canônico; evidência com origem, `observed_at` e freshness; próxima ação e responsável; bloqueio/risco quando houver; e 3–5 eventos recentes deduplicados. Ausência de tarefa aparece como “Nenhuma tarefa observável” e ausência de ação como “Aguardando instrução”. O resumo do escritório só conta estados derivados do inventário atual e identifica agentes indisponíveis separadamente.
+
 ### Fora do escopo inicial
 
 - Autenticação externa ou multiusuário.
@@ -92,6 +94,9 @@ O bridge não aceitará nome de comando arbitrário, caminho arbitrário ou segr
 
 ## Direção visual
 
+- A área principal será um mapa de escritório virtual com salas distintas para Codex, Forge, Atlas, Lumen, Cipher e Sage.
+- Cada agente terá um mini avatar pixel-art original, composto em CSS/HTML e sem copiar personagens, sprites ou nomes protegidos. O avatar terá cor, silhueta e acessório próprios para comunicar a função.
+- Cada sala mostrará placa com nome e papel, avatar, estado observável, tarefa atual, última atividade e ação disponível. O mapa continuará legível como painel operacional mesmo sem animação.
 - Fundo de workspace claro e quente, com contraste alto para texto.
 - Shell escuro translúcido, bordas discretas e efeito de vidro com fallback sólido.
 - Laranja Command Center como único destaque de ação.
@@ -123,6 +128,9 @@ O bridge não aceitará nome de comando arbitrário, caminho arbitrário ou segr
 - O app diferencia agente trabalhando, aguardando, desconhecido e indisponível com base em sinais observáveis.
 - A bridge distingue erro de CLI, timeout, host inválido e payload inválido sem travar o polling.
 - A tela continua utilizável em desktop e viewport estreita.
+- O mapa mantém cada agente identificável em 390px, com salas empilhadas ou trilho horizontal acessível e sem depender apenas do avatar para comunicar estado.
+- Qualquer sala permite identificar tarefa, status, evidência/freshness e próxima ação sem abrir um terminal.
+- Reload e polling preservam ordem e deduplicação do feed dentro da janela definida.
 - O SaaS existente permanece sem alterações funcionais.
 
 ## Decisões e suposições

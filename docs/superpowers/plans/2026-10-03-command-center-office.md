@@ -20,6 +20,8 @@
 - Não haverá endpoints destrutivos na primeira versão.
 - Estados de agente só podem ser afirmados quando observáveis pela CLI/processo; caso contrário usar `indisponível` ou `não observado`.
 - O visual usa o Command Center aprovado: workspace claro, shell escuro translúcido e laranja como ação principal.
+- O mapa usa salas e mini avatares pixel-art originais em CSS/HTML; não usa sprites ou personagens protegidos.
+- Cada sala expõe identidade, tarefa, status, evidência/freshness, próxima ação, bloqueio e atividade recente; dados ausentes usam estados vazios explícitos.
 - Loading, vazio, erro, offline, foco de teclado e viewport estreita precisam ser tratados explicitamente.
 
 ## Review Focus
@@ -93,7 +95,7 @@
 
 - [ ] **Step 1: Add store/service tests for loading, offline, empty and successful chat transitions**
 - [ ] **Step 2: Implement the Command Center layout with Codex as the primary workspace**
-- [ ] **Step 3: Implement agent cards for Forge, Atlas, Lumen, Cipher and Sage with role, connection and observed state**
+- [ ] **Step 3: Implement the virtual office map with rooms and original CSS pixel avatars for every observed agent; each room exposes identity, role, connection, task, canonical status, evidence/freshness, next action, blocker and recent activity**
 - [ ] **Step 4: Implement chat composer, message history, pending state and inline errors**
 - [ ] **Step 5: Implement activity feed and explicit offline/unknown states**
 - [ ] **Step 6: Run `npm run build` and verify no frontend build errors**
