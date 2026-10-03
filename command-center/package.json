@@ -8,5 +8,8 @@
     "build": "node ../node_modules/vite/bin/vite.js build",
     "bridge": "node bridge/server.mjs",
     "test:bridge": "node --test bridge/maestri-cli.test.mjs"
+  },
+  "dependencies": {
+    "phaser": "^4.2.1"
   }
 }

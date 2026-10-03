@@ -13,6 +13,7 @@
 - `node --test src/state/officeStore.test.mjs` — 2 tests passed.
 - `npm run build` inside `command-center/` — passed.
 - `npm run build` at repository root — passed; existing Vite chunk-size warning remains.
+- Phaser office scene — bundled successfully; the expected Phaser vendor chunk is larger than 500 kB and should be code-split in a later performance pass.
 
 ## Real bridge smoke
 
@@ -25,8 +26,9 @@
 
 - Desktop portal at `1440x892`: map, seven observed rooms, inspector, status legend and top-level controls rendered.
 - Narrow portal at `390x844`: `document.documentElement.clientWidth=375`, `scrollWidth=375`, composer present, seven rooms rendered without horizontal overflow.
-- Visual refinement: desktop map now uses an original top-down office-village composition with connected paths, room zones, terrain decoration and CSS pixel avatars; mobile switches to a readable stacked room layout.
+- Visual refinement: desktop map now uses an original top-down Phaser composition with connected paths, room zones, terrain decoration, props and pixel-style avatars; mobile keeps the same spatial scene in a bounded canvas without horizontal overflow.
 - Gather-inspired refinement: `public/assets/command-center-village.png` is an original raster terrain asset; agent names, states and actions remain HTML/accessibility content above the map.
+- Phaser interaction: room/agent selection is emitted back to Vue for the inspector; wheel zoom is bounded and reduced-motion remains respected by the surrounding UI.
 - Chat composer accepted a controlled message; the actual bridge limitation appeared in the chat as an explicit error.
 
 ## Known limitation

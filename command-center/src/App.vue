@@ -1,9 +1,9 @@
 <script setup>
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import ActivityFeed from './components/ActivityFeed.vue'
-import AgentGrid from './components/AgentGrid.vue'
 import OfficeSidebar from './components/OfficeSidebar.vue'
 import OrchestratorChat from './components/OrchestratorChat.vue'
+import PhaserOffice from './components/PhaserOffice.vue'
 import { maestriBridge } from './services/maestriBridge.js'
 import { createOfficeStore } from './state/officeStore.js'
 
@@ -34,11 +34,9 @@ onBeforeUnmount(() => window.clearInterval(refreshTimer))
       <main class="office-main">
         <section class="map-header"><div><p class="eyebrow">MAPA DE OPERAÇÃO</p><h1>Uma sala para cada movimento.</h1><p class="map-subtitle">Converse com o Codex, acompanhe os agentes e veja a evidência por trás de cada estado.</p></div><div class="map-stats"><span><b>{{ state.summary.observed }}</b> observados</span><span><b>{{ state.summary.offline }}</b> indisponíveis</span><small>última leitura {{ updatedLabel }}</small></div></section>
         <div v-if="state.error" class="bridge-alert" role="alert"><span>!</span><div><strong>A bridge precisa de atenção.</strong><p>{{ state.error }}</p></div><button @click="refresh">Tentar novamente</button></div>
-        <section class="office-map" aria-label="Mapa do escritório virtual">
-          <div class="map-grid-lines" aria-hidden="true"></div>
-          <div class="map-terrain" aria-hidden="true"><span class="map-path path-main"></span><span class="map-path path-cross"></span><span class="terrain-pond"></span><span class="terrain-tree tree-a"></span><span class="terrain-tree tree-b"></span><span class="terrain-tree tree-c"></span><span class="terrain-tree tree-d"></span><span class="terrain-bush bush-a"></span><span class="terrain-bush bush-b"></span><span class="terrain-lamp lamp-a"></span><span class="terrain-lamp lamp-b"></span></div>
-          <div class="map-room-label label-core">NÚCLEO DO CODEX</div><div class="map-room-label label-atelier">ATELIÊ</div><div class="map-room-label label-workshop">OFICINAS</div>
-          <AgentGrid :agents="rooms" :loading="state.loading" :selected="selectedRoom" @select="selectAgent" />
+        <section class="office-map" aria-label="Mapa interativo do escritório virtual">
+          <div v-if="state.loading" class="map-loading">Carregando o mapa operacional...</div>
+          <PhaserOffice v-else :agents="rooms" :selected="selectedRoom" @select="selectAgent" />
         </section>
         <section class="office-lower-grid"><OrchestratorChat :messages="state.messages" :sending="state.sending" @send="sendMessage" /><ActivityFeed :events="state.activity" /></section>
       </main>

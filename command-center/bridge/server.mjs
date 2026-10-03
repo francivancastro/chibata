@@ -54,7 +54,7 @@ async function snapshot() {
 
 const server = http.createServer(async (req, res) => {
   if (!allowedHost(req)) return json(res, 403, errorBody('HOST_NOT_ALLOWED', 'A bridge aceita apenas loopback.'))
-  if (!withinRateLimit(req.socket.remoteAddress || 'local')) return json(res, 429, errorBody('RATE_LIMITED', 'Muitas requisições locais; aguarde.', true))
+  if (req.method === 'POST' && !withinRateLimit(req.socket.remoteAddress || 'local')) return json(res, 429, errorBody('RATE_LIMITED', 'Muitas mensagens locais; aguarde.', true))
 
   try {
     if (req.method === 'GET' && req.url === '/api/health') {
