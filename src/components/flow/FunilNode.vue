@@ -1,75 +1,43 @@
 <script setup>
+import { computed } from "vue";
 import { Handle, Position } from "@vue-flow/core";
 
-defineProps({
-  data: Object,
+const props = defineProps({
+  data: { type: Object, required: true },
 });
+
+const LABELS = {
+  mensagem: "Mensagem",
+  produto: "Produto",
+  condicao: "Condição",
+  acao: "Ação",
+  pagamento: "Pagamento",
+  final: "Final",
+};
+
+const etapa = computed(() => props.data?.etapa || {});
+const typeLabel = computed(() => LABELS[etapa.value.tipo] || etapa.value.tipo || "Etapa");
+const warning = computed(() => props.data?.warning || "");
 </script>
 
 <template>
-  <div class="node">
+  <div class="node" :class="[`node--${etapa.tipo}`, { 'node--warn': warning }]">
     <Handle type="target" :position="Position.Top" />
-
-    <div class="header">
-      
-      {{ data.etapa.tipo }}
-      
-    </div>
-
-    <div class="title">
-      
-      {{ data.etapa.titulo }}
-      
-    </div>
-
-    <div class="description">
-      
-      {{ data.etapa.descricao }}
-      
-    </div>
-
-    <Handle type="source" :position="Position.Bottom" />
+    <span class="node-type">{{ typeLabel }}<template v-if="warning"> · {{ warning }}</template></span>
+    <strong class="node-title">{{ etapa.titulo || "Sem título" }}</strong>
+    <span v-if="etapa.descricao" class="node-desc">{{ etapa.descricao }}</span>
+    <Handle v-if="etapa.tipo !== 'final'" type="source" :position="Position.Bottom" />
   </div>
 </template>
 
 <style scoped>
-.node {
-  width: 220px;
-
-  background: white;
-
-  border-radius: 12px;
-
-  box-shadow: 0 3px 15px #0002;
-
-  overflow: hidden;
-
-  border: 2px solid #ddd;
-}
-
-.header {
-  padding: 8px;
-
-  font-size: 12px;
-
-  font-weight: bold;
-
-  text-transform: uppercase;
-
-  background: #eee;
-}
-
-.title {
-  padding: 12px 10px 5px;
-
-  font-weight: bold;
-}
-
-.description {
-  padding: 0 10px 15px;
-
-  font-size: 13px;
-
-  color: #666;
-}
+.node { width: 220px; box-sizing: border-box; padding: 12px 14px; display: flex; flex-direction: column; gap: 3px; border: 1px solid var(--ch-line-strong); border-radius: 12px; background: var(--ch-surface); color: var(--ch-ink); font-family: var(--ch-font); }
+.node-type { font-size: 11px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--ch-muted); }
+.node-title { font-size: 14px; font-weight: 600; line-height: 1.3; }
+.node-desc { font-size: 12px; line-height: 1.45; color: var(--ch-muted); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.node--warn { border: 2px solid #D98A1E; }
+.node--warn .node-type { color: var(--ch-warn-ink); }
+.node--final { background: var(--ch-ink); border-color: var(--ch-ink); color: #FFFFFF; }
+.node--final .node-type, .node--final .node-desc { color: #C6CABE; }
+:global(.vue-flow__node.selected) .node { box-shadow: 0 0 0 3px var(--ch-accent-line); border-color: var(--ch-accent); }
 </style>

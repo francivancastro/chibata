@@ -1,15 +1,28 @@
 <script setup>
-import { ref, onMounted, computed } from "vue";
+import { computed, onMounted, ref } from "vue";
 import { useRoute, useRouter } from "vue-router";
+import { notify } from "@kyvg/vue3-notification";
 
 import { VueFlow, useVueFlow } from "@vue-flow/core";
 import "@vue-flow/core/dist/style.css";
-
 import { Background } from "@vue-flow/background";
 import { Controls } from "@vue-flow/controls";
 import { MiniMap } from "@vue-flow/minimap";
 
 import { useCrud } from "@/composables/useCrud";
+import { errorMessage } from "@/plugins/axios";
+import {
+  PhArrowLeft,
+  PhCheck,
+  PhCreditCard,
+  PhDiamond,
+  PhFlag,
+  PhLightning,
+  PhChatCenteredText,
+  PhShoppingBag,
+  PhTreeStructure,
+  PhX,
+} from "@phosphor-icons/vue";
 
 import MensagemNode from "@/components/flow/nodes/MensagemNode.vue";
 import ProdutoNode from "@/components/flow/nodes/ProdutoNode.vue";
@@ -28,13 +41,20 @@ import FinalEditor from "@/components/flow/editors/FinalEditor.vue";
 const route = useRoute();
 const router = useRouter();
 
-const funilId = route.params.id;
+const funilId = String(route.params.id);
 const crud = useCrud("funil-etapa");
+const funilCrud = useCrud("funil");
 
 const nodes = ref([]);
 const edges = ref([]);
 const selected = ref(null);
 const loading = ref(false);
+const loadError = ref("");
+const funilNome = ref("");
+const botNome = ref("");
+const savingNode = ref(false);
+const lastSaved = ref(null);
+const confirmDelete = ref(false);
 
 const { fitView } = useVueFlow();
 
@@ -47,57 +67,70 @@ const nodeTypes = {
   final: FinalNode,
 };
 
-const showAddDialog = ref(false);
-
-const novoTipo = ref("mensagem");
-
 const tiposEtapa = [
-  {
-    title: "Mensagem",
-    value: "mensagem",
-  },
-  {
-    title: "Produto",
-    value: "produto",
-  },
-  {
-    title: "Condição",
-    value: "condicao",
-  },
-  {
-    title: "Ação",
-    value: "acao",
-  },
-  {
-    title: "Pagamento",
-    value: "pagamento",
-  },
-  {
-    title: "Final",
-    value: "final",
-  },
+  { title: "Mensagem", value: "mensagem", icon: PhChatCenteredText },
+  { title: "Produto", value: "produto", icon: PhShoppingBag },
+  { title: "Condição", value: "condicao", icon: PhDiamond },
+  { title: "Ação", value: "acao", icon: PhLightning },
+  { title: "Pagamento", value: "pagamento", icon: PhCreditCard },
+  { title: "Final", value: "final", icon: PhFlag },
 ];
 
-function closeEditor(event) {
-  event?.stopPropagation?.();
-  selected.value = null;
-}
+const editors = {
+  mensagem: MensagemEditor,
+  produto: ProdutoEditor,
+  condicao: CondicaoEditor,
+  acao: AcaoEditor,
+  pagamento: PagamentoEditor,
+  final: FinalEditor,
+};
 
-function parsePayload(payload) {
-  if (!payload) return {};
+const defaultPayloads = {
+  mensagem: null,
+  produto: JSON.stringify({ produto_id: null, origem: "principal" }),
+  condicao: JSON.stringify({ pergunta: "", opcoes: { sim: null, nao: null } }),
+  acao: JSON.stringify({ action: "create_order" }),
+  pagamento: JSON.stringify({ gateway_code: "pushinpay", environment: "production", payment_context: "main_order" }),
+  final: JSON.stringify({ action: "finish" }),
+};
 
-  if (typeof payload === "object") return payload;
+/*
+ * Posições do layout (A4). A API de etapas ainda não tem campos de posição,
+ * então o layout fica salvo neste navegador. Quando o backend ganhar pos_x/pos_y,
+ * troque readLayout/writeLayout por esses campos.
+ */
+const LAYOUT_KEY = `chibata:funil-layout:${funilId}`;
 
+function readLayout() {
   try {
-    return JSON.parse(payload);
+    return JSON.parse(window.localStorage.getItem(LAYOUT_KEY) || "{}");
   } catch {
     return {};
   }
 }
 
+function writeLayout() {
+  try {
+    const layout = Object.fromEntries(nodes.value.map((n) => [n.id, { x: Math.round(n.position.x), y: Math.round(n.position.y) }]));
+    window.localStorage.setItem(LAYOUT_KEY, JSON.stringify(layout));
+  } catch {
+    /* Sem storage (aba privada): o layout volta ao automático na próxima vez. */
+  }
+}
+
+function parsePayload(payload) {
+  if (!payload) return {};
+  if (typeof payload === "object") return payload;
+  try {
+    return payload ? JSON.parse(payload) : {};
+  } catch {
+    return {};
+  }
+}
+
+// A API espera o payload como texto JSON; texto inválido vira null em vez de quebrar o salvamento.
 function normalizePayloadForSave(payload) {
   if (payload == null) return null;
-
   if (typeof payload === "string") {
     try {
       JSON.parse(payload);
@@ -106,477 +139,375 @@ function normalizePayloadForSave(payload) {
       return null;
     }
   }
-
   return JSON.stringify(payload);
 }
 
+function warningFor(etapa) {
+  const payload = parsePayload(etapa.payload);
+  if (etapa.tipo === "produto" && !payload.produto_id) return "sem produto";
+  if (etapa.tipo === "condicao" && (!payload.opcoes?.sim || !payload.opcoes?.nao)) return "caminho faltando";
+  return "";
+}
+
 function buildNodes(etapas) {
-  return etapas.map((etapa, index) => ({
-    id: String(etapa.id),
-    type: etapa.tipo,
-    position: {
-      x: (index % 4) * 300,
-      y: Math.floor(index / 4) * 220,
-    },
-    data: {
-      etapa,
-    },
-  }));
+  const layout = readLayout();
+  return etapas.map((etapa, index) => {
+    const id = String(etapa.id);
+    return {
+      id,
+      type: nodeTypes[etapa.tipo] ? etapa.tipo : "mensagem",
+      position: layout[id] || { x: (index % 4) * 280, y: Math.floor(index / 4) * 200 },
+      data: { etapa, warning: warningFor(etapa) },
+    };
+  });
 }
 
 function buildEdges(etapas) {
+  const ids = new Set(etapas.map((e) => String(e.id)));
   const result = [];
 
   etapas.forEach((etapa) => {
-    if (etapa.proxima_etapa_id) {
-      result.push({
-        id: `${etapa.id}-${etapa.proxima_etapa_id}`,
-        source: String(etapa.id),
-        target: String(etapa.proxima_etapa_id),
-        animated: true,
-      });
-    }
+    const source = String(etapa.id);
 
-    if (etapa.fallback_etapa_id) {
+    if (etapa.fallback_etapa_id && ids.has(String(etapa.fallback_etapa_id))) {
       result.push({
-        id: `${etapa.id}-fallback-${etapa.fallback_etapa_id}`,
-        source: String(etapa.id),
+        id: `${source}-fallback-${etapa.fallback_etapa_id}`,
+        source,
         target: String(etapa.fallback_etapa_id),
         label: "FALLBACK",
-        animated: true,
-        style: { stroke: "#e53935", strokeDasharray: "6 4" },
-        labelStyle: { fill: "#e53935" },
+        class: "edge-fallback",
       });
     }
 
     if (etapa.tipo === "condicao") {
-      const payload = parsePayload(etapa.payload);
-
-      if (payload.opcoes) {
-        Object.entries(payload.opcoes).forEach(([label, target]) => {
-          if (target == null) return;
-
-          result.push({
-            id: `${etapa.id}-${label}-${target}`,
-            source: String(etapa.id),
-            target: String(target),
-            label: label.toUpperCase(),
-            animated: true,
-          });
+      const { opcoes = {} } = parsePayload(etapa.payload);
+      Object.entries(opcoes).forEach(([label, target]) => {
+        if (target == null || !ids.has(String(target))) return; // sem destino: sem aresta "null"
+        result.push({
+          id: `${source}-${label}-${target}`,
+          source,
+          sourceHandle: label,
+          target: String(target),
+          label: label === "sim" ? "SIM" : label === "nao" ? "NÃO" : label.toUpperCase(),
+          class: `edge-${label}`,
         });
-      }
+      });
+      return;
+    }
+
+    if (etapa.proxima_etapa_id && ids.has(String(etapa.proxima_etapa_id))) {
+      result.push({ id: `${source}-${etapa.proxima_etapa_id}`, source, target: String(etapa.proxima_etapa_id) });
     }
   });
 
   return result;
 }
 
-async function load() {
-  loading.value = true;
+const warnings = computed(() =>
+  nodes.value
+    .filter((n) => n.data?.warning)
+    .map((n) => ({ id: n.id, text: `“${n.data.etapa.titulo || "Etapa"}”: ${n.data.warning}` })),
+);
+
+const savedLabel = computed(() =>
+  lastSaved.value
+    ? `Salvo às ${new Intl.DateTimeFormat("pt-BR", { timeStyle: "short" }).format(lastSaved.value)}`
+    : "Alterações são salvas ao confirmar cada etapa",
+);
+
+async function loadFunil() {
+  try {
+    const { data } = await funilCrud.detail(funilId);
+    const funil = data?.data?.funil || data?.data || {};
+    funilNome.value = funil.nome || "";
+    botNome.value = funil.nome_bot || funil.bot?.nome || "";
+  } catch {
+    /* O título cai para "Funil #id". */
+  }
+}
+
+async function load({ keepSelection = false } = {}) {
+  loading.value = !nodes.value.length;
+  loadError.value = "";
 
   try {
-    const response = await crud.list({
-      funil_id: funilId,
-    });
-
+    const response = await crud.list({ funil_id: funilId });
     const body = response?.data;
     const etapas = Array.isArray(body?.data)
       ? body.data
-      : (body?.data?.list ?? body?.list ?? []);
+      : Array.isArray(body?.data?.list)
+        ? body.data.list
+        : Array.isArray(body?.list)
+          ? body.list
+          : [];
 
+    const selectedId = selected.value?.id;
     nodes.value = buildNodes(etapas);
     edges.value = buildEdges(etapas);
 
-    setTimeout(() => fitView(), 300);
+    if (keepSelection && selectedId != null) {
+      selected.value = etapas.find((e) => String(e.id) === String(selectedId)) || null;
+    }
+
+    if (!keepSelection) setTimeout(() => fitView({ padding: 0.2 }), 200);
+  } catch (err) {
+    nodes.value = [];
+    edges.value = [];
+    loadError.value = errorMessage(err, "Não foi possível carregar as etapas deste funil.");
   } finally {
     loading.value = false;
   }
 }
 
-async function createNode() {
-  const payloads = {
-    mensagem: null,
-
-    produto: JSON.stringify({
-      produto_id: null,
-      origem: "principal",
-    }),
-
-    condicao: JSON.stringify({
-      pergunta: "",
-      opcoes: {
-        sim: null,
-        nao: null,
-      },
-    }),
-
-    acao: JSON.stringify({
-      action: "create_order",
-    }),
-
-    pagamento: JSON.stringify({
-      gateway_code: "pushinpay",
-      environment: "production",
-      payment_context: "main_order",
-    }),
-
-    final: JSON.stringify({
-      action: "finish",
-    }),
-  };
-
+async function createNode(tipo) {
   try {
-    const requestPayload = {
-      funil_id: String(funilId),
-      tipo: novoTipo.value,
-      titulo: "Nova etapa",
+    const response = await crud.create({
+      funil_id: funilId,
+      tipo,
+      titulo: `Nova etapa de ${tiposEtapa.find((t) => t.value === tipo)?.title.toLowerCase() || "fluxo"}`,
       descricao: "",
       ordem: nodes.value.length + 1,
-      payload: payloads[novoTipo.value],
-    };
-
-    const response = await crud.create(requestPayload);
-
-    const serverData = response?.data?.data ?? response?.data?.item ?? response?.data ?? {};
-
-    const etapa = {
-      ...requestPayload,
-      ...serverData,
-      id: serverData?.id ? String(serverData.id) : `temp-${Date.now()}`,
-      tipo: serverData?.tipo ?? requestPayload.tipo,
-      titulo: serverData?.titulo ?? requestPayload.titulo,
-      descricao: serverData?.descricao ?? requestPayload.descricao,
-      ordem: serverData?.ordem ?? requestPayload.ordem,
-      payload: serverData?.payload ?? requestPayload.payload,
-    };
-
-    const node = {
-      id: String(etapa.id),
-      type: etapa.tipo,
-      position: {
-        x: 300 + ((nodes.value.length % 4) * 300),
-        y: 300 + (Math.floor(nodes.value.length / 4) * 220),
-      },
-      data: {
-        etapa,
-      },
-    };
-
-    nodes.value.push(node);
-    selected.value = etapa;
-    showAddDialog.value = false;
-
-    await load();
-  } catch (error) {
-    console.error("Erro ao criar etapa:", error);
+      payload: defaultPayloads[tipo],
+    });
+    const created = response?.data?.data;
+    lastSaved.value = new Date();
+    await load({ keepSelection: true });
+    if (created?.id != null) selected.value = nodes.value.find((n) => n.id === String(created.id))?.data.etapa || null;
+  } catch (err) {
+    notify({ type: "error", title: "Etapa não criada", text: errorMessage(err) });
   }
 }
 
 function selectNode(event) {
   const node = event?.node ?? event;
-
   if (!node?.data?.etapa) return;
-
-  event?.originalEvent?.stopPropagation?.();
-  event?.event?.stopPropagation?.();
-
   selected.value = node.data.etapa;
 }
 
-const editorComponent = computed(() => {
-  const tipo = selected.value?.tipo;
+function focusNode(id) {
+  const node = nodes.value.find((n) => n.id === id);
+  if (!node) return;
+  selected.value = node.data.etapa;
+  fitView({ nodes: [id], padding: 1.2, duration: 300 });
+}
 
-  const editors = {
-    mensagem: MensagemEditor,
-    produto: ProdutoEditor,
-    condicao: CondicaoEditor,
-    acao: AcaoEditor,
-    pagamento: PagamentoEditor,
-    final: FinalEditor,
-  };
+function closeEditor() {
+  selected.value = null;
+}
 
-  return tipo ? (editors[tipo] ?? null) : null;
-});
+const editorComponent = computed(() => editors[selected.value?.tipo] ?? null);
+const etapasDisponiveis = computed(() => nodes.value.map((node) => node?.data?.etapa).filter(Boolean));
+const selectedType = computed(() => tiposEtapa.find((t) => t.value === selected.value?.tipo)?.title || "Etapa");
 
-const etapasDisponiveis = computed(() => {
-  return nodes.value.map((node) => node?.data?.etapa).filter(Boolean);
-});
-async function updateNode(data) {
+function updateNode(data) {
   if (!selected.value) return;
+  selected.value = { ...selected.value, ...data };
+}
 
-  const updated = {
-    ...selected.value,
-    ...data,
-  };
-
-  selected.value = updated;
-
-  const node = nodes.value.find((item) => item.id === String(updated.id));
-
-  if (node) {
-    node.data.etapa = updated;
+async function persist(etapa, successText) {
+  savingNode.value = true;
+  try {
+    await crud.update({ ...etapa, id: etapa.id, payload: normalizePayloadForSave(etapa.payload) });
+    lastSaved.value = new Date();
+    if (successText) notify({ type: "success", title: successText });
+    await load({ keepSelection: true });
+    return true;
+  } catch (err) {
+    notify({ type: "error", title: "Não foi salvo", text: errorMessage(err) });
+    return false;
+  } finally {
+    savingNode.value = false;
   }
 }
 
-async function saveNode() {
-  if (!selected.value) return;
+function saveNode() {
+  if (selected.value) persist(selected.value, "Etapa salva");
+}
 
-  const payload = {
-    ...selected.value,
-    payload: normalizePayloadForSave(selected.value.payload),
-  };
+// Arrastar de uma saída até outra etapa cria a conexão de verdade (antes não persistia).
+async function onConnect({ source, sourceHandle, target }) {
+  const etapa = nodes.value.find((n) => n.id === source)?.data.etapa;
+  if (!etapa || source === target) return;
+  if (etapa.tipo === "final") return; // etapa final não tem próxima
 
-  const isNew = !payload.id || String(payload.id).startsWith("temp-");
-
-  try {
-    if (isNew) {
-      const { id, ...rest } = payload;
-      const response = await crud.create(rest);
-      const created = response?.data?.data ?? response?.data?.item ?? response?.data ?? {};
-      const persisted = {
-        ...payload,
-        ...created,
-        id: created?.id ?? payload.id,
-      };
-
-      selected.value = persisted;
-
-      const node = nodes.value.find((item) => item.id === String(payload.id));
-      if (node) {
-        node.id = String(persisted.id);
-        node.data.etapa = persisted;
-      }
-
-      await load();
-      return;
-    }
-
-    await crud.update({
-      id: payload.id,
-      ...payload,
-    });
-  } catch (error) {
-    console.error("Erro ao salvar etapa:", error);
+  if (etapa.tipo === "condicao") {
+    const payload = parsePayload(etapa.payload);
+    const opcoes = { ...(payload.opcoes || {}), [sourceHandle || "sim"]: String(target) };
+    await persist({ ...etapa, payload: JSON.stringify({ ...payload, opcoes }, null, 2) }, "Conexão salva");
+  } else {
+    await persist({ ...etapa, proxima_etapa_id: target }, "Conexão salva");
   }
 }
 
 async function deleteNode() {
   if (!selected.value) return;
-
-  const ok = window.confirm('Confirma exclusão desta etapa?');
-  if (!ok) return;
-
   try {
     await crud.remove(selected.value.id);
-
-    // remover do fluxo localmente
-    const idStr = String(selected.value.id);
-    nodes.value = nodes.value.filter((n) => String(n.id) !== idStr);
-    edges.value = edges.value.filter(
-      (e) => String(e.source) !== idStr && String(e.target) !== idStr,
-    );
-
+    confirmDelete.value = false;
     selected.value = null;
-  } catch (error) {
-    console.error('Erro ao excluir etapa:', error);
+    lastSaved.value = new Date();
+    await load({ keepSelection: true });
+  } catch (err) {
+    confirmDelete.value = false;
+    notify({ type: "error", title: "Etapa não excluída", text: errorMessage(err) });
   }
 }
 
-async function onConnect(connection) {
-  const sourceId = String(connection?.source ?? "");
-  const targetId = String(connection?.target ?? "");
-
-  if (!sourceId || !targetId || sourceId === targetId) return;
-
-  const sourceNode = nodes.value.find((n) => String(n.id) === sourceId);
-  const etapa = sourceNode?.data?.etapa;
-
-  if (!etapa) return;
-
-  if (etapa.tipo === "condicao") {
-    console.warn(
-      "Etapa de condição: ajuste as opções SIM/NÃO pelo editor da etapa.",
-    );
-    return;
-  }
-
-  if (etapa.tipo === "final") return;
-
-  const updated = {
-    ...etapa,
-    proxima_etapa_id: targetId,
-    payload: normalizePayloadForSave(etapa.payload),
-  };
-
-  try {
-    await crud.update({
-      id: updated.id,
-      ...updated,
-    });
-
-    await load();
-  } catch (error) {
-    console.error("Erro ao conectar etapas:", error);
-  }
+function goBack() {
+  if (window.history.length > 1) router.back();
+  else router.push("/funil");
 }
 
-function savePositions() {
-  console.log(
-    nodes.value.map((node) => ({
-      id: node.id,
-      x: node.position.x,
-      y: node.position.y,
-    })),
-  );
-}
-
-function typeLabel(tipo) {
-  const labels = {
-    mensagem: "Mensagem",
-    produto: "Produto",
-    condicao: "Condição",
-    acao: "Ação",
-    pagamento: "Pagamento",
-    final: "Final",
-  };
-
-  return labels[tipo] ?? tipo;
-}
-
-onMounted(load);
+onMounted(() => {
+  loadFunil();
+  load();
+});
 </script>
 
 <template>
-  <v-container fluid class="pa-0">
-    <v-toolbar density="compact">
-      <v-btn icon="mdi-arrow-left" @click="router.back()" />
-
-      <v-toolbar-title> Editor do Funil {{ funilId }} </v-toolbar-title>
-
-      <v-spacer />
-      <v-btn
-        color="success"
-        prepend-icon="mdi-plus"
-        @click="showAddDialog = true"
-      >
-        Novo
+  <div class="flow-workspace">
+    <header class="flow-header">
+      <v-btn icon variant="text" aria-label="Voltar para funis" @click="goBack">
+        <PhArrowLeft :size="20" aria-hidden="true" />
       </v-btn>
+      <div class="flow-heading">
+        <span class="flow-eyebrow">Funil<template v-if="botNome"> · {{ botNome }}</template></span>
+        <h1>{{ funilNome || `Funil #${funilId}` }}</h1>
+      </div>
+      <span class="flow-saved" :class="{ 'flow-saved--ok': lastSaved }" role="status">
+        <PhCheck v-if="lastSaved" :size="16" aria-hidden="true" />{{ savingNode ? "Salvando…" : savedLabel }}
+      </span>
+    </header>
 
-      <v-btn
-        color="primary"
-        prepend-icon="mdi-content-save"
-        @click="savePositions"
-      >
-        Salvar
-      </v-btn>
-    </v-toolbar>
+    <div class="flow-body">
+      <aside class="flow-palette" aria-label="Adicionar etapa">
+        <h2>Adicionar etapa</h2>
+        <button v-for="tipo in tiposEtapa" :key="tipo.value" type="button" class="palette-item" @click="createNode(tipo.value)">
+          <component :is="tipo.icon" :size="18" aria-hidden="true" />{{ tipo.title }}
+        </button>
 
-    <v-dialog v-model="showAddDialog" max-width="420">
-      <v-card>
-        <v-card-title> Nova etapa </v-card-title>
+        <div v-if="warnings.length" class="flow-warnings" role="status">
+          <strong>{{ warnings.length === 1 ? "1 aviso" : `${warnings.length} avisos` }} no fluxo</strong>
+          <button v-for="w in warnings" :key="w.id" type="button" @click="focusNode(w.id)">{{ w.text }}</button>
+        </div>
+        <p class="flow-hint">Arraste de uma saída até outra etapa para conectar. O layout fica salvo neste navegador.</p>
+      </aside>
 
-        <v-card-text>
-          <v-select
-            v-model="novoTipo"
-            :items="tiposEtapa"
-            item-title="title"
-            item-value="value"
-            label="Tipo"
-          />
-        </v-card-text>
-
-        <v-card-actions>
-          <v-spacer />
-
-          <v-btn variant="text" @click="showAddDialog = false">
-            Cancelar
-          </v-btn>
-
-          <v-btn color="primary" @click="createNode"> Criar </v-btn>
-        </v-card-actions>
-      </v-card>
-    </v-dialog>
-
-    <div class="editor">
-      <div class="canvas">
+      <section class="flow-canvas" aria-label="Fluxo do funil">
+        <div v-if="loading" class="state-block"><v-progress-circular indeterminate color="primary" /><p>Carregando etapas…</p></div>
+        <div v-else-if="loadError" class="state-block" role="alert">
+          <PhTreeStructure :size="32" aria-hidden="true" />
+          <h2>Não foi possível abrir o editor</h2>
+          <p>{{ loadError }}</p>
+          <v-btn color="primary" @click="load()">Tentar novamente</v-btn>
+        </div>
+        <div v-else-if="!nodes.length" class="state-block">
+          <PhTreeStructure :size="32" aria-hidden="true" />
+          <h2>Este funil ainda não tem etapas</h2>
+          <p>Comece com uma mensagem de boas-vindas.</p>
+          <v-btn color="primary" @click="createNode('mensagem')">Adicionar mensagem</v-btn>
+        </div>
         <VueFlow
+          v-else
           v-model:nodes="nodes"
           v-model:edges="edges"
           :node-types="nodeTypes"
+          :default-edge-options="{ type: 'smoothstep' }"
+          fit-view-on-init
           @node-click="selectNode"
           @pane-click="closeEditor"
+          @node-drag-stop="writeLayout"
           @connect="onConnect"
-          fit-view-on-init
         >
-          <Background />
+          <Background :gap="20" pattern-color="#C6CABE" />
           <Controls />
-          <MiniMap />
+          <MiniMap pannable zoomable />
         </VueFlow>
-      </div>
+      </section>
 
-      <v-card v-if="selected" class="sidebar" @click.stop>
-        <v-card-title class="d-flex align-center">
-          {{ selected.titulo }}
-
-          <v-spacer />
-
-          <v-btn
-            icon="mdi-close"
-            size="small"
-            variant="text"
-            @click.stop.prevent="closeEditor"
-          />
-        </v-card-title>
-
-        <v-card-text>
-          <v-chip color="primary" size="small">
-            {{ typeLabel(selected.tipo) }}
-          </v-chip>
-
-          <v-divider class="my-4" />
-
+      <aside v-if="selected" class="flow-inspector" aria-label="Editar etapa">
+        <div class="inspector-head">
+          <div>
+            <span class="inspector-type">{{ selectedType }}</span>
+            <h2>{{ selected.titulo || "Sem título" }}</h2>
+          </div>
+          <v-btn icon variant="text" aria-label="Fechar painel" @click="closeEditor"><PhX :size="18" aria-hidden="true" /></v-btn>
+        </div>
+        <div class="inspector-body">
           <component
-            v-if="editorComponent && selected"
             :is="editorComponent"
+            v-if="editorComponent"
             :key="selected.id"
             :etapa="selected"
             :etapas="etapasDisponiveis"
             @update="updateNode"
             @save="saveNode"
           />
+        </div>
+        <div class="inspector-foot">
+          <v-btn variant="outlined" class="btn-danger" @click="confirmDelete = true">Excluir etapa…</v-btn>
+        </div>
+      </aside>
+    </div>
 
-          <v-alert v-else type="info">
-            Este tipo de nó não possui editor.
-          </v-alert>
-        </v-card-text>
+    <v-dialog v-model="confirmDelete" max-width="420">
+      <v-card role="alertdialog">
+        <v-card-title>Excluir “{{ selected?.titulo || "etapa" }}”?</v-card-title>
+        <v-card-text>As conexões que chegam nela ficam sem destino.</v-card-text>
         <v-card-actions>
           <v-spacer />
-          <v-btn color="red" variant="text" @click="deleteNode">Excluir</v-btn>
+          <v-btn variant="text" @click="confirmDelete = false">Cancelar</v-btn>
+          <v-btn color="error" variant="flat" @click="deleteNode">Excluir</v-btn>
         </v-card-actions>
       </v-card>
-    </div>
-  </v-container>
+    </v-dialog>
+  </div>
 </template>
 
 <style scoped>
-.editor {
-  height: calc(100vh - 64px);
-  display: flex;
-}
+.flow-workspace { height: 100dvh; display: flex; flex-direction: column; background: var(--ch-bg); }
+.flow-header { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; padding: 10px 20px; background: var(--ch-surface); border-bottom: 1px solid var(--ch-line); }
+.flow-heading { display: flex; flex-direction: column; min-width: 0; }
+.flow-eyebrow { font-size: 12px; color: var(--ch-muted); }
+.flow-heading h1 { margin: 0; font-family: var(--ch-display); font-size: 22px; font-weight: 700; letter-spacing: -.01em; color: var(--ch-ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.flow-saved { margin-left: auto; display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: var(--ch-muted); }
+.flow-saved--ok { color: var(--ch-ok); }
 
-.canvas {
-  flex: 1;
-  background: #f5f5f5;
-}
+.flow-body { flex: 1; min-height: 0; display: flex; }
+.flow-palette { width: 220px; flex-shrink: 0; padding: 18px 14px; box-sizing: border-box; display: flex; flex-direction: column; gap: 8px; overflow-y: auto; background: var(--ch-surface); border-right: 1px solid var(--ch-line); }
+.flow-palette h2 { margin: 0 4px 4px; font-size: 12px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--ch-muted); }
+.palette-item { display: flex; align-items: center; gap: 10px; min-height: 44px; padding: 0 12px; border: 1px solid var(--ch-line); border-radius: var(--ch-radius); background: var(--ch-surface); font: inherit; font-size: 14px; color: var(--ch-ink); text-align: left; cursor: pointer; }
+.palette-item svg { color: var(--ch-accent); }
+.palette-item:hover { border-color: var(--ch-accent-line); background: var(--ch-accent-soft); }
+.flow-warnings { margin-top: 12px; padding: 12px; border-radius: var(--ch-radius); background: var(--ch-warn-soft); display: flex; flex-direction: column; gap: 6px; }
+.flow-warnings strong { font-size: 13px; color: var(--ch-warn-ink); }
+.flow-warnings button { padding: 4px 0; border: 0; background: transparent; font: inherit; font-size: 13px; line-height: 1.4; color: var(--ch-ink-2); text-align: left; text-decoration: underline; cursor: pointer; }
+.flow-hint { margin: auto 4px 0; padding-top: 12px; font-size: 12px; line-height: 1.5; color: var(--ch-muted); }
 
-.sidebar {
-  width: 380px;
-  border-radius: 0;
-  overflow: auto;
-}
+.flow-canvas { flex: 1; min-width: 0; position: relative; display: flex; }
+.flow-canvas > .state-block { flex: 1; }
+.flow-canvas :deep(.vue-flow) { width: 100%; height: 100%; }
+.flow-canvas :deep(.vue-flow__edge-path) { stroke: var(--ch-faint); stroke-width: 2; }
+.flow-canvas :deep(.edge-sim .vue-flow__edge-path) { stroke: var(--ch-ok); }
+.flow-canvas :deep(.edge-nao .vue-flow__edge-path) { stroke: var(--ch-danger); }
+.flow-canvas :deep(.edge-fallback .vue-flow__edge-path) { stroke: var(--ch-danger); stroke-dasharray: 6 4; }
+.flow-canvas :deep(.vue-flow__edge-textbg) { fill: var(--ch-bg); }
+.flow-canvas :deep(.vue-flow__edge-text) { font-size: 12px; font-weight: 700; }
+.flow-canvas :deep(.vue-flow__handle) { width: 12px; height: 12px; background: var(--ch-surface); border: 2px solid var(--ch-accent); }
 
-.vue-flow {
-  width: 100%;
-  height: 100%;
+.flow-inspector { width: 340px; flex-shrink: 0; display: flex; flex-direction: column; background: var(--ch-surface); border-left: 1px solid var(--ch-line); }
+.inspector-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; padding: 18px 20px 14px; border-bottom: 1px solid var(--ch-line); }
+.inspector-type { font-size: 12px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--ch-accent); }
+.inspector-head h2 { margin: 2px 0 0; font-size: 18px; font-weight: 600; }
+.inspector-body { flex: 1; overflow-y: auto; padding: 18px 20px; }
+.inspector-foot { padding: 12px 20px 18px; border-top: 1px solid var(--ch-line); }
+
+@media (max-width: 900px) {
+  .flow-body { flex-direction: column; }
+  .flow-palette { width: 100%; flex-direction: row; flex-wrap: wrap; border-right: 0; border-bottom: 1px solid var(--ch-line); }
+  .flow-palette h2, .flow-hint { width: 100%; }
+  .palette-item { flex: 1 1 140px; }
+  .flow-canvas { min-height: 60dvh; }
+  .flow-inspector { width: 100%; border-left: 0; border-top: 1px solid var(--ch-line); }
 }
 </style>

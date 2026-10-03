@@ -1,15 +1,19 @@
 import { createApp } from "vue";
+import Cookies from "js-cookie";
 
 import App from "./App.vue";
 import router from "./router";
 import store from "./store";
 import vuetify from "./plugins/vuetify";
 
-import Cookies from "js-cookie";
-
 import Notifications from "@kyvg/vue3-notification";
 
 import permission from "@/utils/permissions";
+import {
+  isLocalPreviewEnabled,
+  localPreviewUser,
+  requestLocalPreview,
+} from "@/utils/local-preview";
 
 // Remove duplicatas legadas de cookies criados com path "" (escopo de diretório).
 // Se o mesmo nome existe em mais de um path, unifica tudo em path "/".
@@ -40,25 +44,23 @@ function normalizeCookie(name, expires) {
   }
 }
 
-async function bootstrap() {
+function bootstrap() {
   normalizeCookie("token", 1);
   normalizeCookie("refreshToken", 7);
   normalizeCookie("user", 1);
   normalizeCookie("config", 1);
 
-  const token = Cookies.get("token");
-  const refreshToken = Cookies.get("refreshToken");
-  const user = Cookies.get("user");
+  requestLocalPreview();
 
-  if (token) {
-    store.commit("auth/LOGIN", {
-      accessToken: token,
-      refreshToken: refreshToken || "",
+  // O store de auth já lê token, refreshToken e user dos cookies (com tratamento
+  // de cookie corrompido). Aqui só entra a prévia local, que não tem API.
+  if (isLocalPreviewEnabled() && !store.getters["auth/isLogged"]) {
+    store.commit("auth/LOGIN", { accessToken: "local-preview" });
+    store.commit("auth/setUserData", localPreviewUser);
+    store.commit("config/SET_CONFIG", {
+      nome: "Prévia local",
+      descricao: "Navegação visual sem conexão com a API",
     });
-  }
-
-  if (user) {
-    store.commit("auth/setUserData", JSON.parse(user));
   }
 
   const app = createApp(App);

@@ -1,5 +1,3 @@
-import { useStore } from "vuex";
-
 export default {
   type: "funil",
   title: "Funis",
@@ -23,11 +21,13 @@ export default {
       source: "bot",
       itemTitle: "nome",
       itemValue: "id",
+      required: true,
     },
     {
       key: "nome",
       label: "Nome",
       type: "text",
+      required: true,
     },
     {
       key: "descricao",

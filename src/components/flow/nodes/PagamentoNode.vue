@@ -2,18 +2,10 @@
 import FunilNode from "../FunilNode.vue";
 
 defineProps({
-  data: Object,
+  data: { type: Object, required: true },
 });
 </script>
 
 <template>
   <FunilNode :data="data" />
 </template>
-
-<style scoped>
-:deep(.header) {
-  background: #9c27b0;
-
-  color: white;
-}
-</style>

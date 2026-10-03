@@ -1,43 +1,11 @@
 <script setup>
-import { Handle, Position } from "@vue-flow/core";
+import FunilNode from "../FunilNode.vue";
 
 defineProps({
-  data: Object,
+  data: { type: Object, required: true },
 });
 </script>
 
 <template>
-  <div class="final">
-    <Handle type="target" :position="Position.Top" />
-
-    <div>🏁 Final</div>
-
-    <strong>
-      {{ data.etapa.titulo }}
-    </strong>
-  </div>
+  <FunilNode :data="data" />
 </template>
-
-<style scoped>
-.final {
-  width: 220px;
-
-  padding: 20px;
-
-  text-align: center;
-
-  background: #607d8b;
-
-  color: white;
-
-  border-radius: 50px;
-
-  box-shadow: 0 3px 15px #0003;
-}
-
-strong {
-  display: block;
-
-  margin-top: 10px;
-}
-</style>

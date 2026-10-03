@@ -1,0 +1,17 @@
+{
+  "name": "chibata-command-center-office",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "catalog:generate": "node scripts/generate-agent-catalog.mjs",
+    "catalog:validate": "node --test scripts/generate-agent-catalog.test.mjs",
+    "dev": "node ../node_modules/vite/bin/vite.js --host 127.0.0.1",
+    "build": "node ../node_modules/vite/bin/vite.js build",
+    "bridge": "node bridge/server.mjs",
+    "test:bridge": "node --test bridge/maestri-cli.test.mjs"
+  },
+  "dependencies": {
+    "phaser": "^4.2.1"
+  }
+}

@@ -3,7 +3,8 @@ export default {
 
   state() {
     return {
-      showDrawer: true,
+      // Aberto só em telas largas; no celular começa fechado.
+      showDrawer: typeof window === "undefined" ? true : window.innerWidth >= 1280,
     };
   },
 

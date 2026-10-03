@@ -2,118 +2,133 @@ import axios from "axios";
 import store from "@/store";
 import router from "@/router";
 
-const http = axios.create({
-  baseURL: "http://localhost/php-seed",
-});
+const baseURL = import.meta.env.VITE_API_BASE_URL || "http://localhost/php-seed";
 
-let isRefreshing = false;
-let queue = [];
+const http = axios.create({ baseURL });
 
-function processQueue(error, token = null) {
-  queue.forEach((prom) => {
-    if (error) {
-      prom.reject(error);
-    } else {
-      prom.resolve(token);
-    }
-  });
+// Instância sem interceptores, só para renovar o token. Se o próprio refresh
+// falhar, ele não pode entrar de novo no interceptor (era o deadlock da A1).
+const refreshClient = axios.create({ baseURL });
 
-  queue = [];
+const AUTH_ERRNO = { expired: 4002, invalid: [4001, 4003] };
+
+/**
+ * Erro de negócio da API: HTTP 200 com `errno` diferente de 0.
+ * Antes era tratado como sucesso (A2). Agora toda chamada rejeita com ele,
+ * a menos que a requisição passe `allowErrno: true`.
+ */
+export class ApiError extends Error {
+  constructor(message, { errno = null, status = null, data = null, network = false } = {}) {
+    super(message);
+    this.name = "ApiError";
+    this.errno = errno;
+    this.status = status;
+    this.data = data;
+    this.network = network;
+  }
 }
 
-// REQUEST
-http.interceptors.request.use((config) => {
-  const token = store.getters["auth/getToken"];
+/** Mensagem legível para mostrar ao usuário a partir de qualquer erro. */
+export function errorMessage(error, fallback = "Algo deu errado. Tente de novo.") {
+  if (!error) return fallback;
+  if (error.network) return "Não foi possível falar com o servidor. Verifique a conexão.";
+  return error.message && error.message !== "Network Error" ? error.message : fallback;
+}
 
-  if (token) {
-    config.headers.Authorization = token;
+function businessMessage(data) {
+  return data?.msg || data?.message || data?.error || "O servidor recusou a operação.";
+}
+
+let refreshPromise = null;
+
+async function refreshToken() {
+  const refreshToken = store.getters["auth/getRefreshToken"];
+  if (!refreshToken) throw new ApiError("Sessão expirada.", { errno: AUTH_ERRNO.expired });
+
+  const { data } = await refreshClient.post("/refreshAccessToken", { refreshToken });
+  if (data?.errno !== 0 || !data?.data?.accessToken) {
+    throw new ApiError("Sessão expirada.", { errno: data?.errno ?? AUTH_ERRNO.expired, data });
   }
 
+  store.commit("auth/LOGIN", { accessToken: data.data.accessToken, refreshToken });
+  return data.data.accessToken;
+}
+
+async function retryWithFreshToken(originalRequest) {
+  // Uma tentativa por requisição: sem isso, um 401 persistente virava loop.
+  if (originalRequest._retry) {
+    forceLogout();
+    throw new ApiError("Sessão expirada.", { errno: AUTH_ERRNO.expired });
+  }
+  originalRequest._retry = true;
+
+  try {
+    // Várias requisições expiradas ao mesmo tempo compartilham um único refresh.
+    refreshPromise ||= refreshToken().finally(() => { refreshPromise = null; });
+    const token = await refreshPromise;
+    originalRequest.headers = { ...originalRequest.headers, Authorization: token };
+    return http(originalRequest);
+  } catch (err) {
+    forceLogout();
+    throw err instanceof ApiError ? err : new ApiError("Sessão expirada.", { errno: AUTH_ERRNO.expired });
+  }
+}
+
+http.interceptors.request.use((config) => {
+  const token = store.getters["auth/getToken"];
+  if (token) config.headers.Authorization = token;
   return config;
 });
 
-// RESPONSE
 http.interceptors.response.use(
   (response) => {
     const data = response.data;
+    const errno = data?.errno;
 
-    // 🔥 backend error handling
-    if (data?.errno === 4002) {
-      return handleRefresh(response.config);
+    if (errno === AUTH_ERRNO.expired) return retryWithFreshToken(response.config);
+
+    if (AUTH_ERRNO.invalid.includes(errno)) {
+      forceLogout();
+      return Promise.reject(new ApiError("Sessão inválida. Entre de novo.", { errno, data }));
     }
 
-    if (data?.errno === 4001 || data?.errno === 4003) {
-      forceLogout();
-      return Promise.reject(new Error("Auth error"));
+    if (errno !== undefined && errno !== null && errno !== 0 && !response.config.allowErrno) {
+      return Promise.reject(new ApiError(businessMessage(data), { errno, data, status: response.status }));
     }
 
     return response;
   },
-
   (error) => {
     const status = error.response?.status;
 
-    if (status === 401) {
-      return handleRefresh(error.config);
+    if (status === 401 && error.config) return retryWithFreshToken(error.config);
+
+    if (!error.response) {
+      return Promise.reject(new ApiError("Não foi possível falar com o servidor.", { network: true }));
     }
 
-    return Promise.reject(error);
+    return Promise.reject(
+      new ApiError(businessMessage(error.response.data), {
+        status,
+        errno: error.response.data?.errno ?? null,
+        data: error.response.data,
+      }),
+    );
   },
 );
 
-// 🔥 REFRESH LOGIC
-async function handleRefresh(originalRequest) {
-  if (isRefreshing) {
-    return new Promise(function (resolve, reject) {
-      queue.push({ resolve, reject });
-    })
-      .then((token) => {
-        originalRequest.headers.Authorization = token;
-        return http(originalRequest);
-      })
-      .catch((err) => Promise.reject(err));
-  }
+let loggingOut = false;
 
-  isRefreshing = true;
-
-  try {
-    const refreshToken = store.getters["auth/getRefreshToken"];
-
-    const { data } = await http.post("/refreshAccessToken", {
-      refreshToken,
-    });
-
-    if (data.errno !== 0) {
-      throw new Error("Refresh failed");
-    }
-
-    const newToken = data.data.accessToken;
-
-    // 🔥 atualiza store
-    store.commit("auth/LOGIN", {
-      accessToken: newToken,
-      refreshToken,
-    });
-
-    processQueue(null, newToken);
-
-    originalRequest.headers.Authorization = newToken;
-
-    return http(originalRequest);
-  } catch (err) {
-    processQueue(err, null);
-    forceLogout();
-    return Promise.reject(err);
-  } finally {
-    isRefreshing = false;
-  }
-}
-
-// 🔥 logout centralizado
 function forceLogout() {
+  if (loggingOut) return;
+  loggingOut = true;
   store.commit("auth/LOGOUT");
   store.commit("config/CLEAR_CONFIG");
-  router.replace("/login");
+  const current = router.currentRoute.value;
+  const redirect = current?.fullPath && current.path !== "/login" ? current.fullPath : undefined;
+  router.replace({ path: "/login", query: { expired: "1", ...(redirect ? { redirect } : {}) } }).finally(() => {
+    loggingOut = false;
+  });
 }
 
 export default http;

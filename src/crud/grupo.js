@@ -15,7 +15,7 @@ export default {
   ],
 
   fields: [
-    { key: "name", label: "Nome", type: "text" },
+    { key: "name", label: "Nome", type: "text", required: true },
     { key: "regraList", component: PermissionField },
     {
       key: "status",
