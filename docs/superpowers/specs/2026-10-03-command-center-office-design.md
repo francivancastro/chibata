@@ -1,0 +1,118 @@
+# Command Center Office Design
+
+## Objetivo
+
+Criar um frontend separado para funcionar como escritório virtual do projeto Chibata. O usuário poderá conversar com o Codex, acompanhar os agentes conectados ao Maestri e visualizar atividade, tarefas e estado operacional sem misturar o código do escritório ao SaaS principal.
+
+## Resultado esperado
+
+- Um app independente em `command-center/`.
+- Chat local com o Codex como orquestrador principal.
+- Painel visual para Forge, Atlas, Lumen, Cipher e Sage.
+- Visualização real de agentes e conexões obtida pela CLI do Maestri.
+- Estados honestos para aguardando, trabalhando, concluído, bloqueado e indisponível.
+- Execução apenas em `127.0.0.1` por padrão.
+- Nenhuma API key, token ou credencial enviada ao navegador ou versionada.
+
+## Escopo da primeira versão
+
+### Incluído
+
+1. Shell visual Command Center com navegação lateral e área de trabalho.
+2. Chat do Codex com histórico local da sessão.
+3. Lista de agentes com nome individual, papel, conexão e estado.
+4. Feed de eventos com timestamps e origem.
+5. Painel de tarefa atual e arquivos em atividade quando disponíveis.
+6. Atualização periódica de estado através da bridge local.
+7. Respostas de erro explícitas quando Maestri estiver indisponível.
+8. Layout responsivo para desktop e janela estreita.
+
+### Fora do escopo inicial
+
+- Autenticação externa ou multiusuário.
+- Persistência remota de conversas.
+- Execução arbitrária de comandos do sistema pelo navegador.
+- Controle de credenciais ou login do GitHub.
+- Substituição da interface nativa do Maestri.
+- Falsa atividade ou estados simulados quando a CLI não responder.
+
+## Arquitetura
+
+### Frontend
+
+O diretório `command-center/` terá um app Vue 3 + Vite independente, com componentes focados:
+
+- `App.vue`: composição do escritório.
+- `src/components/OfficeSidebar.vue`: navegação e resumo do workspace.
+- `src/components/AgentGrid.vue`: agentes e estados.
+- `src/components/AgentCard.vue`: identidade, papel, conexão e atividade do agente.
+- `src/components/OrchestratorChat.vue`: conversa com Codex.
+- `src/components/ActivityFeed.vue`: eventos ordenados por tempo.
+- `src/services/maestriBridge.js`: cliente HTTP da bridge local.
+- `src/state/officeStore.js`: estado da sessão, agentes, eventos e mensagens.
+- `src/styles/office.css`: tokens e layout Command Center.
+
+### Bridge local
+
+O diretório `command-center/bridge/` terá um pequeno processo Node sem dependências externas obrigatórias. Ele ficará responsável por:
+
+- executar somente subcomandos Maestri permitidos;
+- normalizar a saída de `maestri list`, `maestri ask` e `maestri check`;
+- devolver JSON ao frontend;
+- aplicar timeout e tratamento de processo indisponível;
+- escutar em `127.0.0.1`.
+
+Endpoints da primeira versão:
+
+- `GET /api/agents` — inventário e conexões atuais;
+- `GET /api/activity` — estado/feed observável;
+- `POST /api/chat` — envia uma mensagem ao Codex usando `maestri ask "Codex"`;
+- `GET /api/health` — informa somente disponibilidade da bridge e da CLI.
+
+O bridge não aceitará nome de comando arbitrário, caminho arbitrário ou segredo vindo do browser. O frontend nunca receberá tokens do ambiente.
+
+## Fluxo de dados
+
+1. O navegador solicita o inventário à bridge.
+2. A bridge executa `maestri list` e normaliza a topologia.
+3. O usuário escreve no chat.
+4. A bridge envia somente o texto da mensagem ao Codex por `maestri ask`.
+5. A resposta retorna ao chat e entra no feed como evento real.
+6. O frontend atualiza agentes por polling controlado e mostra indisponibilidade quando não houver resposta.
+
+## Direção visual
+
+- Fundo de workspace claro e quente, com contraste alto para texto.
+- Shell escuro translúcido, bordas discretas e efeito de vidro com fallback sólido.
+- Laranja Command Center como único destaque de ação.
+- Tipografia sans-serif compacta para operação e mono apenas para metadados técnicos.
+- Cards usados para hierarquia real: Codex em destaque, agentes em grade e feed em coluna.
+- Sem métricas inventadas, sem barras de progresso falsas e sem dashboard genérico.
+- Estados de loading, empty, error e offline visíveis e legíveis.
+- Foco por teclado, alvos de toque adequados e contraste WCAG AA.
+
+## Segurança e limites
+
+- A bridge escuta somente em loopback.
+- Nenhuma credencial será lida pelo frontend.
+- Mensagens do usuário são tratadas como dados e não como comandos shell.
+- Nenhum endpoint destrutivo será criado na primeira versão.
+- A aplicação não fará push, merge, instalação ou login automaticamente.
+- Falhas da CLI serão exibidas como indisponibilidade real.
+
+## Verificação e critérios de aceite
+
+- `npm run build` do app independente passa.
+- A bridge responde `/api/health` em loopback.
+- O inventário exibido corresponde ao `maestri list` atual.
+- Uma mensagem enviada pelo chat chega ao Codex sem expor credenciais.
+- A resposta do Codex aparece no histórico da sessão.
+- O app diferencia agente trabalhando, aguardando e indisponível.
+- A tela continua utilizável em desktop e viewport estreita.
+- O SaaS existente permanece sem alterações funcionais.
+
+## Decisões e suposições
+
+- A conversa inicial será com o Codex através da CLI local do Maestri; integração direta com uma API de modelo fica fora da primeira versão.
+- O escritório será criado como pasta independente no mesmo repositório para facilitar execução e publicação, mas terá package/build próprios.
+- O status de atividade será baseado somente em sinais observáveis da CLI e do processo local; não será inferido a partir de animações.
